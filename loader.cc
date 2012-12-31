@@ -7,6 +7,7 @@
 #include "exceptions.hh"
 #include "debug.hh"
 #include "drivers/pci.hh"
+#include "drivers/factory.hh"
 #include <jni.h>
 //#include <locale>
 
@@ -85,6 +86,8 @@ int main(int ac, char **av)
     JavaVM* jvm = nullptr;
 
     pci::pci_devices_print();
+    pci::pci_device_enumeration();
+    Factory::Instance()->DumpDevices();
 
     auto ret = JNI_CreateJavaVM(&jvm, nullptr, &vm_args);
     debug(fmt("JNI_CreateJavaVM() returned %1%") % ret);
