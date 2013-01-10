@@ -45,7 +45,6 @@ extern "C" {
                            char *path, size_t pathlen);
     int _Uelf64_get_proc_name(unw_addr_space_t as, int pid, unw_word_t ip,
                               char *buf, size_t buf_len, unw_word_t *offp);
-    int __fxstat(int ver, int fd, struct stat *buf);
     int __fxstat64(int ver, int fd, struct stat64 *buf);
     void __stack_chk_fail(void);
     void __assert_fail(const char * assertion, const char * file, unsigned int line, const char * function);
@@ -342,11 +341,6 @@ int poll(struct pollfd *fds, nfds_t nfds, int timeout)
     UNIMPLEMENTED("poll");
 }
 
-int __fxstat(int ver, int fd, struct stat *buf)
-{
-    UNIMPLEMENTED("__fxstat");
-}
-
 int __fxstat64(int ver, int fd, struct stat64 *buf)
 {
     UNIMPLEMENTED("__fxstat");
@@ -370,11 +364,6 @@ ssize_t preadv(int fd, const struct iovec *iov, int iovcnt, off_t offset)
 ssize_t pwritev(int fd, const struct iovec *iov, int iovcnt, off_t offset)
 {
     UNIMPLEMENTED("pwritev");
-}
-
-ssize_t read(int fd, void *buf, size_t count)
-{
-    UNIMPLEMENTED("read");
 }
 
 int fclose(FILE *fp)
