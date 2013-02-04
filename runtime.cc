@@ -28,6 +28,8 @@
 #include "mempool.hh"
 #include <pwd.h>
 #include <fcntl.h>
+#include <setjmp.h>
+
 #include "barrier.hh"
 
 #define __LC_LAST 13
