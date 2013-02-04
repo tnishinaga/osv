@@ -25,6 +25,7 @@
 /tests/tst-bsd-netdriver.so: ./tests/tst-bsd-netdriver.so
 /tests/tst-virtionet.so: ./tests/tst-virtionet.so
 /testrunner.so: ./tests/testrunner.so
+/tests/mmap_test.so: ./tests/mmap_test.so
 /java/Hello.class: ./tests/hello/Hello.class
 /java.so: java/java.so
 /java/RunJar.class: java/RunJar.class
