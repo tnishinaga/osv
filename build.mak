@@ -16,6 +16,8 @@ CFLAGS += -I $(src)/libc/internal -I  $(src)/libc/arch/$(arch) \
 
 ASFLAGS = -g $(autodepend)
 
+pypath = /usr/include/python2.7/
+
 cflags-debug =
 cflags-release = -O2
 
@@ -64,7 +66,13 @@ autodepend = -MD -MT $@ -MP
 
 do-sys-includes = $(foreach inc, $(sys-includes), -isystem $(inc))
 
-tests := tests/tst-pthread.so tests/tst-ramdisk.so tests/hello/Hello.class
+test :=
+tests += tests/tst-pthread.so
+tests += tests/tst-ramdisk.so
+
+tests += tests/python.so
+
+tests += tests/hello/Hello.class
 tests += tests/bench/bench.jar
 
 tests/hello/Hello.class: javabase=tests/hello
@@ -73,6 +81,9 @@ java/RunJar.class: javabase=java
 
 tests/tst-pthread.so: tests/tst-pthread.o
 tests/tst-ramdisk.so: tests/tst-ramdisk.o
+tests/python.so: tests/python.o
+
+tests/python.o: CFLAGS += -I $(pypath)
 
 all: loader.img loader.bin
 

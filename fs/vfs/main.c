@@ -1089,6 +1089,8 @@ void unpack_bootfs(void)
 		"/usr/lib/jvm/jre/lib",
 		"/usr/lib/jvm/jre/lib/amd64",
 		"/usr/lib/jvm/jre/lib/amd64/server",
+		"/usr/lib/python2.7",
+		"/usr/lib/python2.7/dist-packages",
 		"/java",
 		"/tests",
 		"/tmp",
