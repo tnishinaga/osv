@@ -49,19 +49,8 @@ typedef enum {
     DTYPE_SOCKET
 } filetype_t;
 
-/*
- * File descriptors reference count
- */
-#define fhold(fp)                           \
-    (__sync_fetch_and_add((&(fp)->f_count), 1))
-#define fdrop(fp)                           \
-    ((__sync_fetch_and_sub((&(fp)->f_count), 1) == 1) ? \
-        _fdrop((fp)) : _fnoop())
-
 #define FDMAX       (0x4000)
 #define FDFIRST     (0x64)
-
-struct file* fget(int fd);
 
 
 struct fileops;
@@ -106,19 +95,24 @@ struct fileops {
 
 extern struct fileops badfileops;
 extern struct fileops vfs_ops;
+extern struct fileops socketops;
 
 fo_chmod_t  invfo_chmod;
 
-/* Alloc a new file structure */
+/*
+ * File descriptors reference count
+ */
+void fhold(struct file* fp);
+int fdrop(struct file* fp);
+
+/* Get fp from fd and increment refcount */
+int fget(int fd, struct file** fp);
+
+/* Allocate and initialize a file descriptor */
 int falloc(struct file **resultfp, int *resultfd);
+void finit(struct file *fp, unsigned flags, filetype_t type,
+    void *opaque, struct fileops *ops);
 
-/* flags - F_WRITE, F_READ, etc... */
-void finit(struct file *fp, unsigned flags, filetype_t type, void *opaque, struct fileops *ops);
-
-
-/* free file structure data */
-int _fdrop(struct file *fp);
-int _fnoop(void);
 
 /*
  * Easy inline functions for invoking the file operations

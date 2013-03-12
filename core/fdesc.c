@@ -39,14 +39,23 @@ static int fdfree(int fd)
     return 0;
 }
 
-struct file* fget(int fd)
+int fget(int fd, struct file** out_fp)
 {
+    struct file* fp;
     int fdd = fd - FDFIRST;
     if ( (fdd < 0) || (fdd >= FDMAX) ) {
-        return NULL;
+        return EBADF;
     }
 
-    return (gfdt[fdd]);
+    fp = gfdt[fd];
+    if (fp == NULL) {
+        return EBADF;
+    }
+
+    fhold(fp);
+    *out_fp = fp;
+
+    return (0);
 }
 
 int falloc(struct file **resultfp, int *resultfd)
@@ -64,6 +73,7 @@ int falloc(struct file **resultfp, int *resultfd)
 
     fd = fdalloc(fp);
     fp->f_fd = fd;
+    fp->f_ops = &badfileops;
 
     /* Start with a refcount of 1 */
     fhold(fp);
@@ -83,19 +93,24 @@ void finit(struct file *fp, unsigned flags, filetype_t type, void *opaque, struc
     fp->f_ops = ops;
 }
 
-int _fdrop(struct file *fp)
+void fhold(struct file* fp)
 {
+    __sync_fetch_and_add((&(fp)->f_count), 1);
+}
+
+int fdrop(struct file* fp)
+{
+    if (__sync_fetch_and_sub((&(fp)->f_count), 1)) {
+        return 0;
+    }
+
+    /* Free file descriptor */
     int fd = fp->f_fd;
     fo_close(fp);
     fdfree(fd);
     free(fp);
 
     return (1);
-}
-
-int _fnoop(void)
-{
-    return (0);
 }
 
 
