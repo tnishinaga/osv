@@ -65,42 +65,31 @@ extern int vfs_debug;
 
 #define ASSERT(e)	assert(e)
 
-#define OPEN_MAX	256
-
-/*
- * per task data
- */
-struct task {
-	struct list_head t_link;	/* hash link */
-	char 	    t_cwd[PATH_MAX];	/* current working directory */
-	file_t	    t_cwdfp;		/* directory for cwd */
-	file_t	    t_ofile[OPEN_MAX];	/* pointers to file structures of open files */
-	int	    t_nopens;		/* number of opening files */
-	mutex_t	    t_lock;		/* lock for this task */
-};
-
 extern const struct vfssw vfssw[];
 
 __BEGIN_DECLS
-int	 sys_open(char *path, int flags, mode_t mode, file_t *pfp);
-int	 sys_close(file_t fp);
-int	 sys_read(file_t fp, struct iovec *iov, size_t niov,
+int	 sys_open(char *path, int flags, mode_t mode, int* fd);
+int	 sys_close(int fd);
+int	 sys_read(int fd, struct iovec *iov, size_t niov,
 		off_t offset, size_t *count);
-int	 sys_write(file_t fp, struct iovec *iov, size_t niov,
+int	 sys_write(int fd, struct iovec *iov, size_t niov,
 		off_t offset, size_t *count);
-int	 sys_lseek(file_t fp, off_t off, int type, off_t * cur_off);
-int	 sys_ioctl(file_t fp, u_long request, void *buf);
-int	 sys_fstat(file_t fp, struct stat *st);
-int	 sys_fstatfs(struct file *fp, struct statfs *buf);
-int	 sys_fsync(file_t fp);
-int	 sys_ftruncate(file_t fp, off_t length);
+int	 sys_lseek(int fd, off_t off, int type, off_t * cur_off);
+int	 sys_ioctl(int fd, u_long request, void *buf);
+int	 sys_fstat(int fd, struct stat *st);
+int	 sys_fstatfs(int fd, struct statfs *buf);
+int	 sys_fsync(int fd);
+int	 sys_ftruncate(int fd, off_t length);
 
-int	 sys_opendir(char *path, file_t * file);
-int	 sys_closedir(file_t fp);
-int	 sys_readdir(file_t fp, struct dirent *dirent);
-int	 sys_rewinddir(file_t fp);
-int	 sys_seekdir(file_t fp, long loc);
-int	 sys_telldir(file_t fp, long *loc);
+int sys_dup(int fd, int* out_fd);
+int sys_dup3(int fd, int new_fd);
+
+int	 sys_opendir(char *path, int* pfd);
+int	 sys_closedir(int fd);
+int	 sys_readdir(int fd, struct dirent *dirent);
+int	 sys_rewinddir(int fd);
+int	 sys_seekdir(int fd, long loc);
+int	 sys_telldir(int fd, long *loc);
 int	 sys_fchdir(file_t fp, char *path);
 
 int	 sys_mkdir(char *path, mode_t mode);
@@ -117,16 +106,6 @@ ssize_t	 sys_readlink(char *path, char *buf, size_t bufsize);
 int	 sys_mount(char *dev, char *dir, char *fsname, int flags, void *data);
 int	 sys_umount(char *path);
 int	 sys_sync(void);
-
-
-int	 task_alloc(struct task **pt);
-
-file_t	 task_getfp(struct task *t, int fd);
-void	 task_setfp(struct task *t, int fd, file_t fp);
-int	 task_newfd(struct task *t);
-void	 task_delfd(struct task *t, int fd);
-
-int	 task_conv(struct task *t, const char *path, int mode, char *full);
 
 //int	 sec_file_permission(task_t task, char *path, int mode);
 int	 sec_vnode_permission(char *path);

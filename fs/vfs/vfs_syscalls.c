@@ -48,7 +48,7 @@
 #include "vfs.h"
 
 int
-sys_open(char *path, int flags, mode_t mode, file_t *pfp)
+sys_open(char *path, int flags, mode_t mode, int *out_fd)
 {
 	vnode_t vp, dvp;
 	file_t fp;
@@ -131,20 +131,32 @@ sys_open(char *path, int flags, mode_t mode, file_t *pfp)
 	finit(fp, flags, DTYPE_VNODE, NULL, &vfs_ops);
 	fp->f_vnode = vp;
 
-	*pfp = fp;
+	*out_fd = fd;
+	fdrop(fp);
 
 	vn_unlock(vp);
 	return 0;
 }
 
 int
-sys_close(file_t fp)
+sys_close(int fd)
 {
+    file_t fp;
+    int error;
+
 	DPRINTF(VFSDB_SYSCALL, ("sys_close: fp=%x count=%d\n",
 				(u_int)fp, fp->f_count));
 
+	error = fget(fd, &fp);
+	if (error)
+	    return error;
+
 	if (fp->f_count <= 0)
 		sys_panic("sys_close");
+
+	fdrop(fp);
+
+	/* FIXME: refcount handling is not ok here */
 
 	/* fdrop - calls fo_close() in case ref count reaches zero */
 	if (!fdrop(fp)) {
@@ -155,75 +167,103 @@ sys_close(file_t fp)
 }
 
 int
-sys_read(file_t fp, struct iovec *iov, size_t niov,
+sys_read(int fd, struct iovec *iov, size_t niov,
 		off_t offset, size_t *count)
 {
 
 	struct uio *uio = NULL;
+	file_t fp;
 	int error;
 
 	DPRINTF(VFSDB_SYSCALL, ("sys_write: fp=%x buf=%x size=%d\n",
 				(u_int)fp, (u_int)buf, size));
 
-	if ((fp->f_flags & FREAD) == 0)
+	error = fget(fd, &fp);
+	if (error)
+	    return error;
+
+	if ((fp->f_flags & FREAD) == 0) {
+	    fdrop(fp);
 		return EBADF;
+	}
 
 	error = copyinuio(iov, niov, &uio);
-	if (error)
+	if (error) {
+	    fdrop(fp);
 		return error;
+	}
 
 	if (uio->uio_resid == 0) {
 		*count = 0;
+		fdrop(fp);
 		return 0;
 	}
 
 	uio->uio_rw = UIO_READ;
 	fo_read(fp, uio, (offset == -1) ? 0 : FOF_OFFSET);
+    fdrop(fp);
 	*count = uio->uio_resid;
 
 	return error;
 }
 
 int
-sys_write(file_t fp, struct iovec *iov, size_t niov,
+sys_write(int fd, struct iovec *iov, size_t niov,
 		off_t offset, size_t *count)
 {
 
 	struct uio *uio = NULL;
+	file_t fp;
 	int ioflags = 0;
 	int error;
 
 	DPRINTF(VFSDB_SYSCALL, ("sys_write: fp=%x uio=%x niv=%zu\n",
 				(u_long)fp, (u_long)uio, niv));
 
-	if ((fp->f_flags & FWRITE) == 0)
+    error = fget(fd, &fp);
+    if (error)
+        return error;
+
+	if ((fp->f_flags & FWRITE) == 0) {
+	    fdrop(fp);
 		return EBADF;
+	}
 	if (fp->f_flags & O_APPEND)
 		ioflags |= IO_APPEND;
 
 	error = copyinuio(iov, niov, &uio);
-	if (error)
+	if (error) {
+	    fdrop(fp);
 		return error;
+	}
 
 	if (uio->uio_resid == 0) {
 		*count = 0;
+		fdrop(fp);
 		return 0;
 	}
 
 	uio->uio_rw = UIO_WRITE;
 	fo_write(fp, uio, ioflags);
+	fdrop(fp);
 	*count = uio->uio_resid;
 
 	return error;
 }
 
 int
-sys_lseek(file_t fp, off_t off, int type, off_t *origin)
+sys_lseek(int fd, off_t off, int type, off_t *origin)
 {
 	vnode_t vp;
+	file_t fp;
+	int error;
 
 	DPRINTF(VFSDB_SYSCALL, ("sys_seek: fp=%x off=%d type=%d\n",
 				(u_int)fp, (u_int)off, type));
+
+    error = fget(fd, &fp);
+    if (error)
+        return error;
 
 	vp = fp->f_vnode;
 	vn_lock(vp);
@@ -252,61 +292,89 @@ sys_lseek(file_t fp, off_t off, int type, off_t *origin)
 		break;
 	default:
 		vn_unlock(vp);
+		fdrop(fp);
 		return EINVAL;
 	}
 	/* Request to check the file offset */
 	if (VOP_SEEK(vp, fp, fp->f_offset, off) != 0) {
 		vn_unlock(vp);
+		fdrop(fp);
 		return EINVAL;
 	}
 	*origin = off;
 	fp->f_offset = off;
 	vn_unlock(vp);
+	fdrop(fp);
+
 	return 0;
 }
 
 int
-sys_ioctl(file_t fp, u_long request, void *buf)
+sys_ioctl(int fd, u_long request, void *buf)
 {
-	int error;
+	file_t fp;
+    int error;
 
 	DPRINTF(VFSDB_SYSCALL, ("sys_ioctl: fp=%x request=%x\n", fp, request));
 
-	if ((fp->f_flags & (FREAD | FWRITE)) == 0)
+    error = fget(fd, &fp);
+    if (error)
+        return error;
+
+	if ((fp->f_flags & (FREAD | FWRITE)) == 0) {
+	    fdrop(fp);
 		return EBADF;
+	}
 
 	error = fo_ioctl(fp, request, buf);
+	fdrop(fp);
 
 	DPRINTF(VFSDB_SYSCALL, ("sys_ioctl: comp error=%d\n", error));
 	return error;
 }
 
 int
-sys_fsync(file_t fp)
+sys_fsync(int fd)
 {
 	vnode_t vp;
+	file_t fp;
 	int error;
 
 	DPRINTF(VFSDB_SYSCALL, ("sys_fsync: fp=%x\n", fp));
 
-	if ((fp->f_flags & FWRITE) == 0)
+    error = fget(fd, &fp);
+    if (error)
+        return error;
+
+	if ((fp->f_flags & FWRITE) == 0) {
+	    fdrop(fp);
 		return EBADF;
+	}
 
 	vp = fp->f_vnode;
 	vn_lock(vp);
 	error = VOP_FSYNC(vp, fp);
 	vn_unlock(vp);
+
+	fdrop(fp);
 	return error;
 }
 
 int
-sys_fstat(file_t fp, struct stat *st)
+sys_fstat(int fd, struct stat *st)
 {
-	int error = 0;
+	int error;
+    file_t fp;
 
-	DPRINTF(VFSDB_SYSCALL, ("sys_fstat: fp=%x\n", fp));
+    DPRINTF(VFSDB_SYSCALL, ("sys_fstat: fd=%x\n", fd));
+
+	error = fget(fd, &fp);
+    if (error)
+        return error;
 
 	error = fo_stat(fp, st);
+
+	fdrop(fp);
 
 	return error;
 }
@@ -318,20 +386,20 @@ static int
 check_dir_empty(char *path)
 {
 	int error;
-	file_t fp;
+	int fd;
 	struct dirent dir;
 
 	DPRINTF(VFSDB_SYSCALL, ("check_dir_empty\n"));
 
-	if ((error = sys_opendir(path, &fp)) != 0)
+	if ((error = sys_opendir(path, &fd)) != 0)
 		return error;
 	do {
-		error = sys_readdir(fp, &dir);
+		error = sys_readdir(fd, &dir);
 		if (error != 0 && error != EACCES)
 			break;
 	} while (!strcmp(dir.d_name, ".") || !strcmp(dir.d_name, ".."));
 
-	sys_closedir(fp);
+	sys_closedir(fd);
 
 	if (error == ENOENT)
 		return 0;
@@ -341,115 +409,168 @@ check_dir_empty(char *path)
 }
 
 int
-sys_opendir(char *path, file_t *file)
+sys_opendir(char *path, int *pfd)
+{
+	vnode_t dvp;
+	file_t fp;
+	int fd;
+	int error;
+
+	DPRINTF(VFSDB_SYSCALL, ("sys_opendir: path=%s\n", path));
+
+	if ((error = sys_open(path, O_RDONLY, 0, &fd)) != 0)
+		return error;
+
+	error = fget(fd, &fp);
+	if (error) {
+	    sys_close(fd);
+	    return error;
+	}
+
+	dvp = fp->f_vnode;
+	vn_lock(dvp);
+	if (dvp->v_type != VDIR) {
+		vn_unlock(dvp);
+		sys_close(fd);
+		fdrop(fp);
+		return ENOTDIR;
+	}
+	vn_unlock(dvp);
+	fdrop(fp);
+
+	*pfd = fd;
+	return 0;
+}
+
+int
+sys_closedir(int fd)
 {
 	vnode_t dvp;
 	file_t fp;
 	int error;
 
-	DPRINTF(VFSDB_SYSCALL, ("sys_opendir: path=%s\n", path));
+	DPRINTF(VFSDB_SYSCALL, ("sys_closedir: fd=%d\n", fd));
 
-	if ((error = sys_open(path, O_RDONLY, 0, &fp)) != 0)
-		return error;
-
-	dvp = fp->f_vnode;
-	vn_lock(dvp);
-	if (dvp->v_type != VDIR) {
-		vn_unlock(dvp);
-		sys_close(fp);
-		return ENOTDIR;
-	}
-	vn_unlock(dvp);
-
-	*file = fp;
-	return 0;
-}
-
-int
-sys_closedir(file_t fp)
-{
-	vnode_t dvp;
-	int error;
-
-	DPRINTF(VFSDB_SYSCALL, ("sys_closedir: fp=%x\n", fp));
+	error = fget(fd, &fp);
+	if (error)
+	    return error;
 
 	dvp = fp->f_vnode;
 	vn_lock(dvp);
 	if (dvp->v_type != VDIR) {
-		vn_unlock(dvp);
+	    vn_unlock(dvp);
+	    fdrop(fp);
 		return EBADF;
 	}
 	vn_unlock(dvp);
-	error = sys_close(fp);
+	fdrop(fp);
+	error = sys_close(fd);
 	return error;
 }
 
 int
-sys_readdir(file_t fp, struct dirent *dir)
+sys_readdir(int fd, struct dirent *dir)
 {
 	vnode_t dvp;
+	file_t fp;
 	int error;
 
-	DPRINTF(VFSDB_SYSCALL, ("sys_readdir: fp=%x\n", fp));
+	DPRINTF(VFSDB_SYSCALL, ("sys_readdir: fd=%d\n", fd));
+
+    error = fget(fd, &fp);
+    if (error)
+        return error;
 
 	dvp = fp->f_vnode;
 	vn_lock(dvp);
 	if (dvp->v_type != VDIR) {
 		vn_unlock(dvp);
+		fdrop(fp);
 		return EBADF;
 	}
 	error = VOP_READDIR(dvp, fp, dir);
 	DPRINTF(VFSDB_SYSCALL, ("sys_readdir: error=%d path=%s\n",
 				error, dir->d_name));
 	vn_unlock(dvp);
+	fdrop(fp);
 	return error;
 }
 
 int
-sys_rewinddir(file_t fp)
+sys_rewinddir(int fd)
 {
-	vnode_t dvp;
+    vnode_t dvp;
+    file_t fp;
+    int error;
+
+    DPRINTF(VFSDB_SYSCALL, ("sys_rewinddir: fd=%d\n", fd));
+
+    error = fget(fd, &fp);
+    if (error)
+        return error;
 
 	dvp = fp->f_vnode;
 	vn_lock(dvp);
 	if (dvp->v_type != VDIR) {
 		vn_unlock(dvp);
+		fdrop(fp);
 		return EBADF;
 	}
 	fp->f_offset = 0;
 	vn_unlock(dvp);
+	fdrop(fp);
 	return 0;
 }
 
 int
-sys_seekdir(file_t fp, long loc)
+sys_seekdir(int fd, long loc)
 {
-	vnode_t dvp;
+    vnode_t dvp;
+    file_t fp;
+    int error;
+
+    DPRINTF(VFSDB_SYSCALL, ("sys_seekdir: fd=%d\n", fd));
+
+    error = fget(fd, &fp);
+    if (error)
+        return error;
 
 	dvp = fp->f_vnode;
 	vn_lock(dvp);
 	if (dvp->v_type != VDIR) {
 		vn_unlock(dvp);
+		fdrop(fp);
 		return EBADF;
 	}
 	fp->f_offset = (off_t)loc;
 	vn_unlock(dvp);
+	fdrop(fp);
 	return 0;
 }
 
 int
-sys_telldir(file_t fp, long *loc)
+sys_telldir(int fd, long *loc)
 {
-	vnode_t dvp;
+    vnode_t dvp;
+    file_t fp;
+    int error;
+
+    DPRINTF(VFSDB_SYSCALL, ("sys_seekdir: fd=%d\n", fd));
+
+    error = fget(fd, &fp);
+    if (error)
+        return error;
 
 	dvp = fp->f_vnode;
 	vn_lock(dvp);
 	if (dvp->v_type != VDIR) {
 		vn_unlock(dvp);
+		fdrop(fp);
 		return EBADF;
 	}
 	*loc = (long)fp->f_offset;
 	vn_unlock(dvp);
+	fdrop(fp);
 	return 0;
 }
 
@@ -743,12 +864,19 @@ sys_statfs(char *path, struct statfs *buf)
 }
 
 int
-sys_fstatfs(struct file *fp, struct statfs *buf)
+sys_fstatfs(int fd, struct statfs *buf)
 {
-	struct vnode *vp = fp->f_vnode;
-	int error = 0;
+    file_t fp;
+	struct vnode *vp;
+	int error;
 
 	memset(buf, 0, sizeof(*buf));
+
+	error = fget(fd, &fp);
+	if (error)
+	    return error;
+
+	vp = fp->f_vnode;
 
 	vn_lock(vp);
 	error = VFS_STATFS(vp->v_mount, buf);
@@ -764,7 +892,7 @@ sys_truncate(char *path, off_t length)
 }
 
 int
-sys_ftruncate(file_t fp, off_t length)
+sys_ftruncate(int fd, off_t length)
 {
 	return 0;
 }
@@ -798,4 +926,52 @@ sys_readlink(char *path, char *buf, size_t bufsize)
 	/* no symlink support (yet) in OSv */
 	vput(vp);
 	return EINVAL;
+}
+
+int
+sys_dup(int fd, int* out_fd)
+{
+    file_t fp;
+    int new_fd;
+    int error;
+
+    error = fget(fd, &fp);
+    if (error)
+        return error;
+
+    new_fd = fdalloc(fp);
+
+    if (fp->f_type == DTYPE_VNODE) {
+        vref(fp->f_vnode);
+    }
+
+    /* Don't call fdrop(), refcount is increased by fget() */
+
+    *out_fd = new_fd;
+    return 0;
+
+}
+
+int
+sys_dup3(int fd, int new_fd)
+{
+    file_t fp;
+    int error;
+
+    error = fget(fd, &fp);
+    if (error)
+        return error;
+
+    error = fdset(new_fd, fp);
+    if (error)
+        return error;
+
+    if (fp->f_type == DTYPE_VNODE) {
+        vref(fp->f_vnode);
+    }
+
+    /* Don't call fdrop(), refcount is increased by fget() */
+
+    return 0;
+
 }

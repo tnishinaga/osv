@@ -12,7 +12,6 @@ fs +=	vfs/main.o \
 	vfs/vfs_lookup.o \
 	vfs/vfs_mount.o \
 	vfs/vfs_vnode.o \
-	vfs/vfs_task.o \
 	vfs/vfs_syscalls.o \
 	vfs/vfs_fops.o
 

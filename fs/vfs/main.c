@@ -57,43 +57,101 @@
 int	vfs_debug = VFSDB_FLAGS;
 #endif
 
-struct task *main_task;	/* we only have a single process */
+/* Current directory */
+char cwd[PATH_MAX];
+
+void cwd_init(void)
+{
+    strlcpy(cwd, "/", PATH_MAX);
+}
+
+/*
+ * Convert to full path from the cwd and path.
+ * @path: target path
+ * @full: full path to be returned
+ */
+int
+pconv(const char *cpath, char *full)
+{
+    char path[PATH_MAX];
+    char *src, *tgt, *p, *end;
+    size_t len = 0;
+
+    strlcpy(path, cpath, PATH_MAX);
+    path[PATH_MAX - 1] = '\0';
+
+    len = strlen(path);
+    if (len >= PATH_MAX)
+        return ENAMETOOLONG;
+    if (strlen(cwd) + len >= PATH_MAX)
+        return ENAMETOOLONG;
+    src = path;
+    tgt = full;
+    end = src + len;
+    if (path[0] == '/') {
+        *tgt++ = *src++;
+        len++;
+    } else {
+        strlcpy(full, cwd, PATH_MAX);
+        len = strlen(cwd);
+        tgt += len;
+        if (len > 1 && path[0] != '.') {
+            *tgt = '/';
+            tgt++;
+            len++;
+        }
+    }
+    while (*src) {
+        p = src;
+        while (*p != '/' && *p != '\0')
+            p++;
+        *p = '\0';
+        if (!strcmp(src, "..")) {
+            if (len >= 2) {
+                len -= 2;
+                tgt -= 2;   /* skip previous '/' */
+                while (*tgt != '/') {
+                    tgt--;
+                    len--;
+                }
+                if (len == 0) {
+                    tgt++;
+                    len++;
+                }
+            }
+        } else if (!strcmp(src, ".")) {
+            /* Ignore "." */
+        } else {
+            while (*src != '\0') {
+                *tgt++ = *src++;
+                len++;
+            }
+        }
+        if (p == end)
+            break;
+        if (len > 0 && *(tgt - 1) != '/') {
+            *tgt++ = '/';
+            len++;
+        }
+        src = p + 1;
+    }
+    *tgt = '\0';
+
+    return 0;
+}
+
 
 int open(const char *pathname, int flags, mode_t mode)
 {
-	struct task *t = main_task;
-	char path[PATH_MAX];
-	file_t fp;
 	int fd, error;
-	int acc;
+	char path[PATH_MAX];
 
-	/* Find empty slot for file descriptor. */
-	if ((fd = task_newfd(t)) == -1) {
-		errno = EMFILE;
-		return -1;
-	}
+    if ((error = pconv(pathname, path)) != 0)
+        goto out_errno;
 
-	acc = 0;
-	switch (flags & O_ACCMODE) {
-	case O_RDONLY:
-		acc = VREAD;
-		break;
-	case O_WRONLY:
-		acc = VWRITE;
-		break;
-	case O_RDWR:
-		acc = VREAD | VWRITE;
-		break;
-	}
-
-	if ((error = task_conv(t, pathname, acc, path)) != 0)
+	if ((error = sys_open(path, flags, mode, &fd)) != 0)
 		goto out_errno;
 
-	if ((error = sys_open(path, flags, mode, &fp)) != 0)
-		goto out_errno;
-
-	t->t_ofile[fd] = fp;
-	t->t_nopens++;
 	return fd;
 out_errno:
 	errno = error;
@@ -109,23 +167,13 @@ int creat(const char *pathname, mode_t mode)
 
 int close(int fd)
 {
-	struct task *t = main_task;
-	file_t fp;
 	int error;
 
 	error = EBADF;
 
-	if (fd >= OPEN_MAX)
-		goto out_errno;
-	fp = t->t_ofile[fd];
-	if (fp == NULL)
+	if ((error = sys_close(fd)) != 0)
 		goto out_errno;
 
-	if ((error = sys_close(fp)) != 0)
-		goto out_errno;
-
-	t->t_ofile[fd] = NULL;
-	t->t_nopens--;
 	return 0;
 out_errno:
 	errno = error;
@@ -134,12 +182,11 @@ out_errno:
 
 int mknod(const char *pathname, mode_t mode, dev_t dev)
 {
-	struct task *t = main_task;
-	char path[PATH_MAX];
 	int error;
+    char path[PATH_MAX];
 
-	if ((error = task_conv(t, pathname, VWRITE, path)) != 0)
-		goto out_errno;
+    if ((error = pconv(pathname, path)) != 0)
+        goto out_errno;
 
 	error = sys_mknod(path, mode);
 	if (error)
@@ -153,16 +200,10 @@ out_errno:
 
 off_t lseek(int fd, off_t offset, int whence)
 {
-	struct task *t = main_task;
-	file_t fp;
 	off_t org;
 	int error;
 
-	error = EBADF;
-	if ((fp = task_getfp(t, fd)) == NULL)
-		goto out_errno;
-
-	error = sys_lseek(fp, offset, whence, &org);
+	error = sys_lseek(fd, offset, whence, &org);
 	if (error)
 		goto out_errno;
 	return org;
@@ -177,20 +218,14 @@ off_t lseek64(int fd, off64_t offset, int whence)
 
 ssize_t pread(int fd, void *buf, size_t count, off_t offset)
 {
-	struct task *t = main_task;
 	struct iovec iov = {
 		.iov_base	= buf,
 		.iov_len	= count,
 	};
-	file_t fp;
 	size_t bytes;
 	int error;
 
-	error = EBADF;
-	if ((fp = task_getfp(t, fd)) == NULL)
-		goto out_errno;
-
-	error = sys_read(fp, &iov, 1, offset, &bytes);
+	error = sys_read(fd, &iov, 1, offset, &bytes);
 	if (error)
 		goto out_errno;
 
@@ -207,20 +242,14 @@ ssize_t read(int fd, void *buf, size_t count)
 
 ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset)
 {
-	struct task *t = main_task;
 	struct iovec iov = {
 		.iov_base	= (void *)buf,
 		.iov_len	= count,
 	};
-	file_t fp;
 	size_t bytes;
 	int error;
 
-	error = EBADF;
-	if ((fp = task_getfp(t, fd)) == NULL)
-		goto out_errno;
-
-	error = sys_write(fp, &iov, 1, offset, &bytes);
+	error = sys_write(fd, &iov, 1, offset, &bytes);
 	if (error)
 		goto out_errno;
 	return bytes;
@@ -236,16 +265,10 @@ ssize_t write(int fd, const void *buf, size_t count)
 
 ssize_t preadv(int fd, const struct iovec *iov, int iovcnt, off_t offset)
 {
-	struct task *t = main_task;
-	file_t fp;
 	size_t bytes;
 	int error;
 
-	error = EBADF;
-	if ((fp = task_getfp(t, fd)) == NULL)
-		goto out_errno;
-
-	error = sys_read(fp, (struct iovec *)iov, iovcnt, offset, &bytes);
+	error = sys_read(fd, (struct iovec *)iov, iovcnt, offset, &bytes);
 	if (error)
 		goto out_errno;
 
@@ -262,16 +285,10 @@ ssize_t readv(int fd, const struct iovec *iov, int iovcnt)
 
 ssize_t pwritev(int fd, const struct iovec *iov, int iovcnt, off_t offset)
 {
-	struct task *t = main_task;
-	file_t fp;
 	size_t bytes;
 	int error;
 
-	error = EBADF;
-	if ((fp = task_getfp(t, fd)) == NULL)
-		goto out_errno;
-
-	error = sys_write(fp, (struct iovec *)iov, iovcnt, offset, &bytes);
+	error = sys_write(fd, (struct iovec *)iov, iovcnt, offset, &bytes);
 	if (error)
 		goto out_errno;
 	return bytes;
@@ -287,15 +304,9 @@ ssize_t writev(int fd, const struct iovec *iov, int iovcnt)
 
 int ioctl(int fd, int request, unsigned long arg)
 {
-	struct task *t = main_task;
-	file_t fp;
 	int error;
 
-	error = EBADF;
-	if ((fp = task_getfp(t, fd)) == NULL)
-		goto out_errno;
-
-	error = sys_ioctl(fp, request, (void *)arg);
+	error = sys_ioctl(fd, request, (void *)arg);
 	if (error)
 		goto out_errno;
 	return 0;
@@ -306,15 +317,9 @@ out_errno:
 
 int fsync(int fd)
 {
-	struct task *t = main_task;
-	file_t fp;
 	int error;
 
-	error = EBADF;
-	if ((fp = task_getfp(t, fd)) == NULL)
-		goto out_errno;
-
-	error = sys_fsync(fp);
+	error = sys_fsync(fd);
 	if (error)
 		goto out_errno;
 	return 0;
@@ -326,19 +331,13 @@ out_errno:
 
 int __fxstat(int ver, int fd, struct stat *st)
 {
-	struct task *t = main_task;
-	file_t fp;
 	int error;
 
 	error = ENOSYS;
 	if (ver != 1)
 		goto out_errno;
 
-	error = EBADF;
-	if ((fp = task_getfp(t, fd)) == NULL)
-		goto out_errno;
-
-	error = sys_fstat(fp, st);
+	error = sys_fstat(fd, st);
 	if (error)
 		goto out_errno;
 	return 0;
@@ -402,15 +401,9 @@ fs_closedir(struct task *t, struct msg *msg)
 int
 ll_readdir(int fd, struct dirent *d)
 {
-	struct task *t = main_task;
 	int error;
-	file_t fp;
 
-	error = -EBADF;
-	if ((fp = task_getfp(t, fd)) == NULL)
-		goto out_errno;
-
-	error = sys_readdir(fp, d);
+	error = sys_readdir(fd, d);
 	if (error)
 		goto out_errno;
 	return 0;
@@ -468,12 +461,11 @@ fs_telldir(struct task *t, struct msg *msg)
 int
 mkdir(const char *pathname, mode_t mode)
 {
-	struct task *t = main_task;
-	char path[PATH_MAX];
 	int error;
+    char path[PATH_MAX];
 
-	if ((error = task_conv(t, pathname, VWRITE, path)) != 0)
-		goto out_errno;
+    if ((error = pconv(pathname, path)) != 0)
+        goto out_errno;
 
 	error = sys_mkdir(path, mode);
 	if (error)
@@ -487,15 +479,15 @@ out_errno:
 
 int rmdir(const char *pathname)
 {
-	struct task *t = main_task;
-	char path[PATH_MAX];
 	int error;
+	char path[PATH_MAX];
 
 	error = ENOENT;
 	if (pathname == NULL)
 		goto out_errno;
-	if ((error = task_conv(t, pathname, VWRITE, path)) != 0)
-		goto out_errno;
+
+    if ((error = pconv(pathname, path)) != 0)
+        goto out_errno;
 
 	error = sys_rmdir(path);
 	if (error)
@@ -508,20 +500,19 @@ out_errno:
 
 int rename(const char *oldpath, const char *newpath)
 {
-	struct task *t = main_task;
-	char src[PATH_MAX];
-	char dest[PATH_MAX];
-	int error;
+    char src[PATH_MAX];
+    char dest[PATH_MAX];
+    int error;
 
-	error = ENOENT;
-	if (oldpath == NULL || newpath == NULL)
-		goto out_errno;
+    error = ENOENT;
+    if (oldpath == NULL || newpath == NULL)
+        goto out_errno;
 
-	if ((error = task_conv(t, oldpath, VREAD, src)) != 0)
-		goto out_errno;
+    if ((error = pconv(oldpath, src)) != 0)
+        goto out_errno;
 
-	if ((error = task_conv(t, newpath, VWRITE, dest)) != 0)
-		goto out_errno;
+    if ((error = pconv(newpath, dest)) != 0)
+        goto out_errno;
 
 	error = sys_rename(src, dest);
 	if (error)
@@ -534,25 +525,20 @@ out_errno:
 
 int chdir(const char *pathname)
 {
-	struct task *t = main_task;
-	char path[PATH_MAX];
-	file_t fp;
 	int error;
+	int fd;
 
 	error = ENOENT;
 	if (pathname == NULL)
 		goto out_errno;
 
 	/* Check if directory exits */
-//	if ((error = sys_opendir(path, &fp)) != 0)
-	if ((error = sys_open(path, O_RDONLY, 0, &fp)) != 0)
+	if ((error = sys_open((char *)pathname, O_RDONLY, 0, &fd)) != 0)
 		goto out_errno;
 
-	if (t->t_cwdfp)
-//		sys_closedir(t->t_cwdfp);
-		sys_close(t->t_cwdfp);
-	t->t_cwdfp = fp;
-	strlcpy(t->t_cwd, path, sizeof(t->t_cwd));
+	sys_close(fd);
+
+	strlcpy(cwd, pathname, PATH_MAX);
  	return 0;
 out_errno:
 	errno = error;
@@ -561,11 +547,11 @@ out_errno:
 
 int fchdir(int fd)
 {
-	struct task *t = main_task;
-	file_t fp;
-	int error;
+	int error = EBADF;
 
-	error = EBADF;
+	assert(0);
+	/* FIXME: OSv - Implement... */
+#if 0
 	if ((fp = task_getfp(t, fd)) == NULL)
 		goto out_errno;
 
@@ -578,6 +564,7 @@ int fchdir(int fd)
 		goto out_errno;
 	return 0;
 out_errno:
+#endif
 	errno = error;
 	return -1;
 }
@@ -591,15 +578,15 @@ int link(const char *oldpath, const char *newpath)
 
 int unlink(const char *pathname)
 {
-	struct task *t = main_task;
-	char path[PATH_MAX];
-	int error;
+    char path[PATH_MAX];
+    int error;
 
 	error = ENOENT;
 	if (pathname == NULL)
 		goto out_errno;
-	if ((error = task_conv(t, pathname, VWRITE, path)) != 0)
-		goto out_errno;
+
+    if ((error = pconv(pathname, path)) != 0)
+        goto out_errno;
 
 	error = sys_unlink(path);
 	if (error)
@@ -612,17 +599,15 @@ out_errno:
 
 int __xstat(int ver, const char *pathname, struct stat *st)
 {
-	struct task *t = main_task;
-	char path[PATH_MAX];
+    char path[PATH_MAX];
 	int error;
 
 	error = ENOSYS;
 	if (ver != 1)
 		goto out_errno;
 
-	error = task_conv(t, pathname, 0, path);
-	if (error)
-		goto out_errno;
+    if ((error = pconv(pathname, path)) != 0)
+        goto out_errno;
 
 	error = sys_stat(path, st);
 	if (error)
@@ -655,13 +640,11 @@ LFS64(lstat);
 
 int __statfs(const char *pathname, struct statfs *buf)
 {
-	struct task *t = main_task;
 	char path[PATH_MAX];
-	int error;
+    int error;
 
-	error = task_conv(t, pathname, 0, path);
-	if (error)
-		goto out_errno;
+    if ((error = pconv(pathname, path)) != 0)
+        goto out_errno;
 
 	error = sys_statfs(path, buf);
 	if (error)
@@ -677,16 +660,9 @@ LFS64(statfs);
 
 int __fstatfs(int fd, struct statfs *buf)
 {
-	struct task *t = main_task;
-	struct file *fp;
 	int error;
 
-	error = EBADF;
-	fp = task_getfp(t, fd);
-	if (!fp)
-		goto out_errno;
-
-	error = sys_fstatfs(fp, buf);
+	error = sys_fstatfs(fd, buf);
 	if (error)
 		goto out_errno;
 	return 0;
@@ -739,9 +715,9 @@ LFS64(fstatvfs);
 
 char *getcwd(char *path, size_t size)
 {
-	struct task *t = main_task;
-	int len = strlen(t->t_cwd) + 1;
-	int error;
+    int error = ENOMEM;
+
+	int len = strlen(cwd) + 1;
 
 	if (!path) {
 		if (!size)
@@ -763,7 +739,7 @@ char *getcwd(char *path, size_t size)
 		goto out_errno;
 	}
 
-	memcpy(path, t->t_cwd, len);
+	memcpy(path, cwd, len);
 	return path;
 
 out_errno:
@@ -776,25 +752,12 @@ out_errno:
  */
 int dup(int oldfd)
 {
-	struct task *t = main_task;
-	file_t fp;
 	int newfd;
 	int error;
 
-	error = EBADF;
-	if ((fp = task_getfp(t, oldfd)) == NULL)
-		goto out_errno;
-
-	/* Find smallest empty slot as new fd. */
-	error = EMFILE;
-	if ((newfd = task_newfd(t)) == -1)
-		goto out_errno;
-
-	t->t_ofile[newfd] = fp;
-
-	/* Increment file reference */
-	vref(fp->f_vnode);
-	fp->f_count++;
+	error = sys_dup(oldfd, &newfd);
+	if (error)
+	    goto out_errno;
 
 	return newfd;
 out_errno:
@@ -807,8 +770,6 @@ out_errno:
  */
 int dup3(int oldfd, int newfd, int flags)
 {
-	struct task *t = main_task;
-	file_t fp, org;
 	int error;
 
 	/*
@@ -818,22 +779,10 @@ int dup3(int oldfd, int newfd, int flags)
 	if ((flags & ~O_CLOEXEC) != 0)
 		return -EINVAL;
 
-	error = EBADF;
-	if (oldfd >= OPEN_MAX || newfd >= OPEN_MAX)
+	error = sys_dup3(oldfd, newfd);
+	if (error)
 		goto out_errno;
-	fp = t->t_ofile[oldfd];
-	if (fp == NULL)
-		goto out_errno;
-	org = t->t_ofile[newfd];
-	if (org != NULL) {
-		/* Close previous file if it's opened. */
-		error = sys_close(org);
-	}
-	t->t_ofile[newfd] = fp;
 
-	/* Increment file reference */
-	vref(fp->f_vnode);
-	fp->f_count++;
 	return newfd;
 out_errno:
 	errno = error;
@@ -850,40 +799,40 @@ int dup2(int oldfd, int newfd)
  */
 int fcntl(int fd, int cmd, int arg)
 {
-	struct task *t = main_task;
 	file_t fp;
 	int new_fd;
 	int error;
-
-	error = EBADF;
-	if ((fp = task_getfp(t, fd)) == NULL)
-		goto out_errno;
+	int flags;
 
 	switch (cmd) {
 	case F_DUPFD:
-		if (arg >= OPEN_MAX)
-			return EINVAL;
-		/* Find smallest empty slot as new fd. */
-		if ((new_fd = task_newfd(t)) == -1)
-			return EMFILE;
-		t->t_ofile[new_fd] = fp;
+		error = sys_dup(fd, &new_fd);
+		if (error)
+			goto out_errno;
 
-		/* Increment file reference */
-		vref(fp->f_vnode);
-		fp->f_count++;
 		return new_fd;
 	case F_GETFD:
-		return fp->f_flags & FD_CLOEXEC;
+	    error = fget(fd, &fp);
+	    if (error)
+	        goto out_errno;
+
+		flags = fp->f_flags & FD_CLOEXEC;
+		fdrop(fp);
+		return (flags);
 	case F_SETFD:
-		fp->f_flags = (fp->f_flags & ~FD_CLOEXEC) |
+	    error = fget(fd, &fp);
+	    if (error)
+	        goto out_errno;
+
+	    fp->f_flags = (fp->f_flags & ~FD_CLOEXEC) |
 			(arg & FD_CLOEXEC);
+		fdrop(fp);
 		return 0;
-	default:
-		kprintf("unsupported fcntl cmd 0x%x\n", cmd);
-		error = EINVAL;
-		goto out_errno;
 	}
-	return 0;
+
+    kprintf("unsupported fcntl cmd 0x%x\n", cmd);
+    error = EINVAL;
+
 out_errno:
 	errno = error;
 	return -1;
@@ -894,22 +843,16 @@ out_errno:
  */
 int access(const char *pathname, int mode)
 {
-	struct task *t = main_task;
-	char path[PATH_MAX];
-	int acc, error = 0;
+    char path[PATH_MAX];
+    int error;
 
-	acc = 0;
-	if (mode & R_OK)
-		acc |= VREAD;
-	if (mode & W_OK)
-		acc |= VWRITE;
-
-	if ((error = task_conv(t, pathname, acc, path)) != 0)
-		goto out_errno;
+    if ((error = pconv(pathname, path)) != 0)
+        goto out_errno;
 
 	error = sys_access(path, mode);
 	if (error)
 		goto out_errno;
+
 	return 0;
 out_errno:
 	errno = error;
@@ -966,17 +909,18 @@ fs_pipe(struct task *t, struct msg *msg)
  */
 int isatty(int fd)
 {
-	struct task *t = main_task;
 	file_t fp;
 	int istty = 0;
 	int error;
 
-	error = EBADF;
-	if ((fp = task_getfp(t, fd)) == NULL)
-		goto out_errno;
+    error = fget(fd, &fp);
+    if (error)
+        goto out_errno;
 
 	if (fp->f_vnode->v_flags & VISTTY)
 		istty = 1;
+
+	fdrop(fp);
 	return istty;
 out_errno:
 	errno = error;
@@ -985,15 +929,15 @@ out_errno:
 
 int truncate(const char *pathname, off_t length)
 {
-	struct task *t = main_task;
-	char path[PATH_MAX];
+    char path[PATH_MAX];
 	int error;
 
 	error = ENOENT;
 	if (pathname == NULL)
 		goto out_errno;
-	if ((error = task_conv(t, pathname, VWRITE, path)) != 0)
-		goto out_errno;
+
+    if ((error = pconv(pathname, path)) != 0)
+        goto out_errno;
 
 	error = sys_truncate(path, length);
 	if (error)
@@ -1006,15 +950,9 @@ out_errno:
 
 int ftruncate(int fd, off_t length)
 {
-	struct task *t = main_task;
-	file_t fp;
 	int error;
 
-	error = EBADF;
-	if ((fp = task_getfp(t, fd)) == NULL)
-		goto out_errno;
-
-	error = sys_ftruncate(fp, length);
+	error = sys_ftruncate(fd, length);
 	if (error)
 		goto out_errno;
 	return 0;
@@ -1025,8 +963,7 @@ out_errno:
 
 ssize_t readlink(const char *pathname, char *buf, size_t bufsize)
 {
-	struct task *t = main_task;
-	char path[PATH_MAX];
+    char path[PATH_MAX];
 	int error;
 
 	error = -EINVAL;
@@ -1036,9 +973,9 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsize)
 	error = ENOENT;
 	if (pathname == NULL)
 		goto out_errno;
-	error = task_conv(t, pathname, VWRITE, path);
-	if (error)
-		goto out_errno;
+
+    if ((error = pconv(pathname, path)) != 0)
+        goto out_errno;
 
 	error = sys_readlink(path, buf, bufsize);
 	if (error)
@@ -1151,9 +1088,9 @@ vfs_init(void)
 {
 	const struct vfssw *fs;
 
+	cwd_init();
 	bio_init();
 	vnode_init();
-	task_alloc(&main_task);
 	console_init();
 
 	/*
