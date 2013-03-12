@@ -12,22 +12,35 @@ struct file* gfdt[FDMAX] = {0};
 volatile unsigned fd_idx = 0;
 
 
-/* lock-free allocation of a file descriptor */
-static int fdalloc(struct file* fp)
+/*
+ * lock-free allocation of a file descriptor
+ * FIXME: table may get full
+ */
+int fdalloc(struct file* fp)
 {
     int fd;
     do {
         fd = __sync_fetch_and_add(&fd_idx, 1) % FDMAX;
     } while (__sync_val_compare_and_swap(&gfdt[fd], NULL, fp));
 
-    return (FDFIRST + fd);
+    return fd;
+}
+
+/* Try to set a particular fp to another fd */
+int fdset(int fd, struct file* fp)
+{
+    struct file* orig = __sync_val_compare_and_swap(&gfdt[fd], NULL, fp);
+    if (orig != NULL) {
+        return EBADF;
+    }
+
+    return 0;
 }
 
 static int fdfree(int fd)
 {
     struct file* fp;
-    int fdd = fd - FDFIRST;
-    if ( (fdd < 0) || (fdd >= FDMAX) ) {
+    if ( (fd < 0) || (fd >= FDMAX) ) {
         return -1;
     }
 
@@ -42,8 +55,7 @@ static int fdfree(int fd)
 int fget(int fd, struct file** out_fp)
 {
     struct file* fp;
-    int fdd = fd - FDFIRST;
-    if ( (fdd < 0) || (fdd >= FDMAX) ) {
+    if ( (fd < 0) || (fd >= FDMAX) ) {
         return EBADF;
     }
 

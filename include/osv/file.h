@@ -50,8 +50,6 @@ typedef enum {
 } filetype_t;
 
 #define FDMAX       (0x4000)
-#define FDFIRST     (0x64)
-
 
 struct fileops;
 
@@ -98,6 +96,10 @@ extern struct fileops vfs_ops;
 extern struct fileops socketops;
 
 fo_chmod_t  invfo_chmod;
+
+/* Alloc an fd for fp */
+int fdalloc(struct file* fp);
+int fdset(int fd, struct file* fp);
 
 /*
  * File descriptors reference count
