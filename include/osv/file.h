@@ -104,7 +104,10 @@ struct fileops {
     fo_chmod_t  *fo_chmod;
 };
 
+extern struct fileops badfileops;
 extern struct fileops vfs_ops;
+
+fo_chmod_t  invfo_chmod;
 
 /* Alloc a new file structure */
 int falloc(struct file **resultfp, int *resultfd);
