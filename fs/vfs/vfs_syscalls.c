@@ -154,14 +154,11 @@ sys_close(int fd)
 	if (fp->f_count <= 0)
 		sys_panic("sys_close");
 
+	/* Release one ref we got by calling fget(); */
 	fdrop(fp);
 
-	/* FIXME: refcount handling is not ok here */
-
-	/* fdrop - calls fo_close() in case ref count reaches zero */
-	if (!fdrop(fp)) {
-	    vrele(fp->f_vnode);
-	}
+	/* Release one ref count, invokes fo_close() in case there are no holders */
+	fdrop(fp);
 
 	return 0;
 }
