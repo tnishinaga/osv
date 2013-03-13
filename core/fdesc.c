@@ -1,29 +1,31 @@
+#include <assert.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <osv/file.h>
+#include <osv/debug.h>
 
 /*
  * Global file descriptors table - in OSv we have a single process so file
- * descriptors are maintained globally (not per-thread)
+ * descriptors are maintained globally.
  */
-
 struct file* gfdt[FDMAX] = {0};
-volatile unsigned fd_idx = 0;
-
 
 /*
  * lock-free allocation of a file descriptor
- * FIXME: table may get full
  */
 int fdalloc(struct file* fp)
 {
     int fd;
-    do {
-        fd = __sync_fetch_and_add(&fd_idx, 1) % FDMAX;
-    } while (__sync_val_compare_and_swap(&gfdt[fd], NULL, fp));
+    for (fd=0; fd<FDMAX; fd++) {
+        if (gfdt[fd] == NULL) {
+            if (__sync_val_compare_and_swap(&gfdt[fd], NULL, fp) == NULL) {
+                return fd;
+            }
+        }
+    }
 
-    return fd;
+    return EMFILE;
 }
 
 /* Try to set a particular fp to another fd */
@@ -112,14 +114,19 @@ void fhold(struct file* fp)
 
 int fdrop(struct file* fp)
 {
+    int error;
+
     if (__sync_fetch_and_sub((&(fp)->f_count), 1)) {
         return 0;
     }
 
-    /* Free file descriptor */
     int fd = fp->f_fd;
     fo_close(fp);
-    fdfree(fd);
+
+    /* Free file descriptor */
+    error = fdfree(fd);
+    assert(error == 0);
+
     free(fp);
 
     return (1);
