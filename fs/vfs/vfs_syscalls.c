@@ -139,116 +139,6 @@ sys_open(char *path, int flags, mode_t mode, int *out_fd)
 }
 
 int
-sys_close(int fd)
-{
-    file_t fp;
-    int error;
-
-	DPRINTF(VFSDB_SYSCALL, ("sys_close: fp=%x count=%d\n",
-				(u_int)fp, fp->f_count));
-
-	error = fget(fd, &fp);
-	if (error)
-	    return error;
-
-	if (fp->f_count <= 0)
-		sys_panic("sys_close");
-
-	/* Release one ref we got by calling fget(); */
-	fdrop(fp);
-
-	/* Release one ref count, invokes fo_close() in case there are no holders */
-	fdrop(fp);
-
-	return 0;
-}
-
-int
-sys_read(int fd, struct iovec *iov, size_t niov,
-		off_t offset, size_t *count)
-{
-
-	struct uio *uio = NULL;
-	file_t fp;
-	int error;
-
-	DPRINTF(VFSDB_SYSCALL, ("sys_write: fp=%x buf=%x size=%d\n",
-				(u_int)fp, (u_int)buf, size));
-
-	error = fget(fd, &fp);
-	if (error)
-	    return error;
-
-	if ((fp->f_flags & FREAD) == 0) {
-	    fdrop(fp);
-		return EBADF;
-	}
-
-	error = copyinuio(iov, niov, &uio);
-	if (error) {
-	    fdrop(fp);
-		return error;
-	}
-
-	if (uio->uio_resid == 0) {
-		*count = 0;
-		fdrop(fp);
-		return 0;
-	}
-
-	uio->uio_rw = UIO_READ;
-	fo_read(fp, uio, (offset == -1) ? 0 : FOF_OFFSET);
-    fdrop(fp);
-	*count = uio->uio_resid;
-
-	return error;
-}
-
-int
-sys_write(int fd, struct iovec *iov, size_t niov,
-		off_t offset, size_t *count)
-{
-
-	struct uio *uio = NULL;
-	file_t fp;
-	int ioflags = 0;
-	int error;
-
-	DPRINTF(VFSDB_SYSCALL, ("sys_write: fp=%x uio=%x niv=%zu\n",
-				(u_long)fp, (u_long)uio, niv));
-
-    error = fget(fd, &fp);
-    if (error)
-        return error;
-
-	if ((fp->f_flags & FWRITE) == 0) {
-	    fdrop(fp);
-		return EBADF;
-	}
-	if (fp->f_flags & O_APPEND)
-		ioflags |= IO_APPEND;
-
-	error = copyinuio(iov, niov, &uio);
-	if (error) {
-	    fdrop(fp);
-		return error;
-	}
-
-	if (uio->uio_resid == 0) {
-		*count = 0;
-		fdrop(fp);
-		return 0;
-	}
-
-	uio->uio_rw = UIO_WRITE;
-	fo_write(fp, uio, ioflags);
-	fdrop(fp);
-	*count = uio->uio_resid;
-
-	return error;
-}
-
-int
 sys_lseek(int fd, off_t off, int type, off_t *origin)
 {
 	vnode_t vp;
@@ -307,30 +197,6 @@ sys_lseek(int fd, off_t off, int type, off_t *origin)
 }
 
 int
-sys_ioctl(int fd, u_long request, void *buf)
-{
-	file_t fp;
-    int error;
-
-	DPRINTF(VFSDB_SYSCALL, ("sys_ioctl: fp=%x request=%x\n", fp, request));
-
-    error = fget(fd, &fp);
-    if (error)
-        return error;
-
-	if ((fp->f_flags & (FREAD | FWRITE)) == 0) {
-	    fdrop(fp);
-		return EBADF;
-	}
-
-	error = fo_ioctl(fp, request, buf);
-	fdrop(fp);
-
-	DPRINTF(VFSDB_SYSCALL, ("sys_ioctl: comp error=%d\n", error));
-	return error;
-}
-
-int
 sys_fsync(int fd)
 {
 	vnode_t vp;
@@ -354,25 +220,6 @@ sys_fsync(int fd)
 	vn_unlock(vp);
 
 	fdrop(fp);
-	return error;
-}
-
-int
-sys_fstat(int fd, struct stat *st)
-{
-	int error;
-    file_t fp;
-
-    DPRINTF(VFSDB_SYSCALL, ("sys_fstat: fd=%x\n", fd));
-
-	error = fget(fd, &fp);
-    if (error)
-        return error;
-
-	error = fo_stat(fp, st);
-
-	fdrop(fp);
-
 	return error;
 }
 
