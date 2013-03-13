@@ -29,7 +29,6 @@
 
 #include <osv/file.h>
 #include <osv/fcntl.h>
-#include <osv/vnode.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
@@ -104,7 +103,6 @@ sys_write(int fd, struct iovec *iov, size_t niov,
 {
     struct uio *uio = NULL;
     file_t fp;
-    int ioflags = 0;
     int error;
 
     error = fget(fd, &fp);
@@ -115,8 +113,6 @@ sys_write(int fd, struct iovec *iov, size_t niov,
         fdrop(fp);
         return EBADF;
     }
-    if (fp->f_flags & O_APPEND)
-        ioflags |= IO_APPEND;
 
     error = copyinuio(iov, niov, &uio);
     if (error) {
@@ -131,7 +127,7 @@ sys_write(int fd, struct iovec *iov, size_t niov,
     }
 
     uio->uio_rw = UIO_WRITE;
-    fo_write(fp, uio, ioflags);
+    fo_write(fp, uio, (offset == -1) ? 0 : FOF_OFFSET);
     fdrop(fp);
 
     *count = uio->uio_resid;

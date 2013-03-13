@@ -1,3 +1,5 @@
+#include <fcntl.h>
+
 #include <sys/stat.h>
 #include <osv/file.h>
 #include <fs/vfs/vfs.h>
@@ -41,13 +43,16 @@ static int vfs_read(struct file *fp, struct uio *uio, int flags)
     return error;
 }
 
-
 static int vfs_write(struct file *fp, struct uio *uio, int flags)
 {
     int error;
     size_t count;
     ssize_t bytes;
+    int ioflags = 0;
     struct vnode *vp = fp->f_vnode;
+
+    if (fp->f_flags & O_APPEND)
+        ioflags |= IO_APPEND;
 
     bytes = uio->uio_resid;
 
@@ -56,7 +61,7 @@ static int vfs_write(struct file *fp, struct uio *uio, int flags)
     if ((flags & FOF_OFFSET) == 0)
         uio->uio_offset = fp->f_offset;
 
-    error = VOP_WRITE(vp, uio, flags);
+    error = VOP_WRITE(vp, uio, ioflags);
     if (!error) {
         count = bytes - uio->uio_resid;
         uio->uio_resid = count;
