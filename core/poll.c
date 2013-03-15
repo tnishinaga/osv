@@ -201,6 +201,7 @@ int poll(struct pollfd _pfd[], nfds_t _nfds, int _timeout)
     nr_events = poll_scan(p._pfd, _nfds);
     if (nr_events) {
         memcpy(_pfd, p._pfd, pfd_sz);
+        free(p._pfd);
         return 0;
     }
 
