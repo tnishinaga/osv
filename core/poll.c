@@ -98,7 +98,7 @@ int poll_scan(struct pollfd _pfd[], nfds_t _nfds)
  * Signal the file descriptor with changed events
  * This function is invoked when the file descriptor is changed.
  */
-int poll_wake(int fd)
+int poll_wake(int fd, int events)
 {
     int error, i;
     list_t head, n, tmp;
@@ -131,6 +131,11 @@ int poll_wake(int fd)
      */
     for (n = list_first(head); n != head; n = list_next(n)) {
         pl = list_entry(n, struct poll_link, _link);
+
+        /* Make sure some of the events match */
+        if (pl->_events & events == 0) {
+            continue;
+        }
 
         /* p is the current pollreq */
         p = pl->_req;
@@ -230,6 +235,7 @@ int poll(struct pollfd _pfd[], nfds_t _nfds, int _timeout)
          * will be cleared on wakeup()
          */
         pl->_req = &p;
+        pl->_events = entry->events;
 
         FD_LOCK(fp);
 
