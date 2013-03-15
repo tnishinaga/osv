@@ -106,6 +106,8 @@ struct pollreq {
 struct poll_link {
     struct list_head _link;
     struct pollreq* _req;
+    /* Events being polled... */
+    int _events;
 };
 
 int poll(struct pollfd _pfd[], nfds_t _nfds, int _timeout);
