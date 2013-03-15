@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <osv/file.h>
+#include <osv/list.h>
 #include <osv/debug.h>
 
 /*
@@ -78,6 +79,8 @@ int falloc_noinstall(struct file **resultfp)
 	/* Start with a refcount of 1 */
 	fp->f_count = 1;
 	fp->f_ops = &badfileops;
+	list_init(&fp->f_plist);
+	mutex_init(&fp->f_lock);
 
 	*resultfp = fp;
 	return 0;
