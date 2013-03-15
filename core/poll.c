@@ -59,8 +59,9 @@ int poll_no_poll(int events)
 }
 
 /*
- * Iterate file descriptors and search for pre-existing events,
- * Fill-in the revents for each poll.
+ * Iterate all file descriptors and search for existing events,
+ * Fill-in the revents for each fd in the poll.
+ *
  * Returns the number of file descriptors changed
  */
 int poll_scan(struct pollfd _pfd[], nfds_t _nfds)
@@ -72,6 +73,7 @@ int poll_scan(struct pollfd _pfd[], nfds_t _nfds)
 
     for (i=0; i<_nfds; ++i) {
         entry = &_pfd[i];
+        /* FIXME: verify zeroing revents is posix compliant */
         entry->revents = 0;
 
         error = fget(entry->fd, &fp);
@@ -93,7 +95,8 @@ int poll_scan(struct pollfd _pfd[], nfds_t _nfds)
 }
 
 /*
- * Calls wakeup on the poll requests waiting for fd
+ * Signal the file descriptor with changed events
+ * This function is invoked when the file descriptor is changed.
  */
 int poll_wake(int fd)
 {
@@ -113,6 +116,7 @@ int poll_wake(int fd)
     FD_LOCK(fp);
     head = &fp->f_plist;
 
+    /* Anyone polls? */
     if (list_empty(head)) {
         FD_UNLOCK(fp);
         fdrop(fp);
@@ -163,7 +167,8 @@ int poll_wake(int fd)
 
             FD_UNLOCK(fp2);
             fdrop(fp2);
-        }
+
+        } /* End of clearing pollreq references from the other fds */
 
         /* Now, free the poll_link of the signaled fd */
         tmp = n->prev;
@@ -206,15 +211,24 @@ int poll(struct pollfd _pfd[], nfds_t _nfds, int _timeout)
         return 0;
     }
 
-    /* Add pollreq to file descriptor */
+    /*
+     * Add a reference to this pollreq to all file descriptors
+     * The reference is added via struct poll_link
+     * Multiple poll requests can be issued on the same fd, so we manage
+     * the references in a linked list
+     */
     for (i=0; i<_nfds; ++i) {
         entry = &p._pfd[i];
         fget(entry->fd, &fp);
 
+        /* Allocate a link */
         pl = malloc(sizeof(struct poll_link));
         memset(pl, 0, sizeof(struct poll_link));
 
-        /* Save a reference to request */
+        /* Save a reference to request, the pollreq is saved on the stack,
+         * which is ok since this function is blocking, and all references
+         * will be cleared on wakeup()
+         */
         pl->_req = &p;
 
         FD_LOCK(fp);
@@ -229,7 +243,7 @@ int poll(struct pollfd _pfd[], nfds_t _nfds, int _timeout)
     /* Block until there's a change with one of the file descriptors */
     msleep((void *)&p, NULL, 0, "poll", p._timeout);
 
-    /* Rescan and return */
+    /* Rescan and return (copy-out) */
     poll_scan(p._pfd, _nfds);
     memcpy(_pfd, p._pfd, pfd_sz);
     free(p._pfd);
