@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <osv/file.h>
+#include <osv/list.h>
 #include <osv/debug.h>
 
 /*
@@ -88,6 +89,8 @@ int falloc(struct file **resultfp, int *resultfd)
     fd = fdalloc(fp);
     fp->f_fd = fd;
     fp->f_ops = &badfileops;
+    list_init(&fp->f_plist);
+    mutex_init(&fp->f_lock);
 
     /* Start with a refcount of 1 */
     fhold(fp);

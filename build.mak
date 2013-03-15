@@ -209,6 +209,7 @@ objects += core/sglist.o
 objects += core/kprintf.o
 objects += core/trace.o
 objects += core/fdesc.o
+objects += core/poll.o
 objects += core/sys_generic.o
 
 unittests:= tests/tst-hub.o
