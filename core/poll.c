@@ -186,6 +186,7 @@ int poll(struct pollfd _pfd[], nfds_t _nfds, int _timeout)
     int nr_events, i;
     struct pollfd* entry;
     struct file* fp;
+    struct poll_link* pl;
     struct pollreq p = {0};
     size_t pfd_sz = sizeof(struct pollfd) * _nfds;
 
@@ -210,7 +211,6 @@ int poll(struct pollfd _pfd[], nfds_t _nfds, int _timeout)
         entry = &p._pfd[i];
         fget(entry->fd, &fp);
 
-        struct poll_link* pl;
         pl = malloc(sizeof(struct poll_link));
         memset(pl, 0, sizeof(struct poll_link));
 
