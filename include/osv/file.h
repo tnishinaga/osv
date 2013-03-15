@@ -27,8 +27,8 @@
  * SUCH DAMAGE.
  */
 
-#ifndef _SYS_FILE_H_
-#define _SYS_FILE_H_
+#ifndef _OSV_FILE_H_
+#define _OSV_FILE_H_
 
 #include <sys/cdefs.h>
 #include <sys/types.h>
@@ -37,8 +37,6 @@
 #include <osv/uio.h>
 
 __BEGIN_DECLS
-
-struct vnode;
 
 /*
  * File type
@@ -51,6 +49,7 @@ typedef enum {
 
 #define FDMAX       (0x4000)
 
+struct vnode;
 struct fileops;
 
 /*
@@ -186,4 +185,4 @@ fo_chmod(struct file *fp, mode_t mode)
 
 __END_DECLS
 
-#endif /* !_SYS_FILE_H_ */
+#endif /* !_OSV_FILE_H_ */
