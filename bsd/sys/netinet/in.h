@@ -71,7 +71,7 @@ typedef	uint16_t		in_port_t;
 #endif
 
 #ifndef _SA_FAMILY_T_DECLARED
-typedef	uint8_t			sa_family_t;
+typedef	uint8_t		sa_family_t;
 #define	_SA_FAMILY_T_DECLARED
 #endif
 
