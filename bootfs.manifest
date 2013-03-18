@@ -29,4 +29,25 @@
 /java.so: java/java.so
 /java/RunJar.class: java/RunJar.class
 /bench.jar: tests/bench/bench.jar
-#/tests/read01.so: ../../external/ltp/build/debug/syscalls/read/read01.so
+
+/java/bootstrap.jar: ../../external/volano/lib/bootstrap.jar
+/java/jakarta-regexp-1.5.jar: ../../external/volano/lib/jakarta-regexp-1.5.jar
+/java/tomcat-coyote.jar: ../../external/volano/lib/tomcat-coyote.jar
+/java/catalina.jar: ../../external/volano/lib/catalina.jar
+/java/mx4j.jar: ../../external/volano/lib/mx4j.jar
+/java/tomcat-http11.jar: ../../external/volano/lib/tomcat-http11.jar
+/java/commons-beanutils.jar: ../../external/volano/lib/commons-beanutils.jar
+/java/naming-common.jar: ../../external/volano/lib/naming-common.jar
+/java/tomcat-util.jar: ../../external/volano/lib/tomcat-util.jar
+/java/commons-collections-3.2.jar: ../../external/volano/lib/commons-collections-3.2.jar
+/java/naming-resources.jar: ../../external/volano/lib/naming-resources.jar
+/java/tomcat4-coyote.jar: ../../external/volano/lib/tomcat4-coyote.jar
+/java/commons-digester-1.8.jar: ../../external/volano/lib/commons-digester-1.8.jar
+/java/servlet.jar: ../../external/volano/lib/servlet.jar
+/java/volano-chat-server.jar: ../../external/volano/lib/volano-chat-server.jar
+/java/commons-logging-api-1.1.1.jar: ../../external/volano/lib/commons-logging-api-1.1.1.jar
+/java/servlets-common.jar: ../../external/volano/lib/servlets-common.jar
+/java/xercesImpl.jar: ../../external/volano/lib/xercesImpl.jar
+/java/commons-modeler-2.0.1.jar: ../../external/volano/lib/commons-modeler-2.0.1.jar
+/java/servlets-default.jar: ../../external/volano/lib/servlets-default.jar
+/java/xml-apis.jar: ../../external/volano/lib/xml-apis.jar

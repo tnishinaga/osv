@@ -1,6 +1,6 @@
 
 arch = x64
-cmdline = java.so Hello
+cmdline = java.so COM.volano.Main
 #cmdline = testrunner.so
 INCLUDES = -I. -I$(src)/arch/$(arch) -I$(src) -I$(src)/external/libunwind/include -I$(src)/include
 INCLUDES += -I$(src)/external/acpica/source/include
