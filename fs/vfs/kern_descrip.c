@@ -4,6 +4,7 @@
 #include <string.h>
 #include <osv/file.h>
 #include <osv/list.h>
+#include <osv/poll.h>
 #include <osv/debug.h>
 
 /*
@@ -132,6 +133,8 @@ int fdrop(struct file *fp)
         	return 0;
 
 	fo_close(fp);
+	poll_drain(fp);
+	mutex_destroy(&fp->f_lock);
 	free(fp);
 	return 1;
 }
