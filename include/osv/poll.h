@@ -110,7 +110,10 @@ struct poll_link {
     int _events;
 };
 
+struct file;
+
 int poll(struct pollfd _pfd[], nfds_t _nfds, int _timeout);
+void poll_drain(struct file* fp);
 int poll_no_poll(int events);
 __END_DECLS
 
