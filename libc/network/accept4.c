@@ -11,7 +11,7 @@ int accept4(int fd, struct sockaddr *restrict addr, socklen_t *restrict len, int
     int fd2, error;
 
     /* In Release, this flag will be ignored */
-    assert(flg & SOCK_CLOEXEC == 0);
+    assert(((flg & SOCK_CLOEXEC) == 0));
 
     error = sys_accept(fd, addr, *len, &fd2);
     if (error) {
