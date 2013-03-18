@@ -58,6 +58,34 @@ int poll_no_poll(int events)
     return (events & (POLLIN | POLLOUT | POLLRDNORM | POLLWRNORM));
 }
 
+/* Drain the poll link list from the file... */
+void poll_drain(struct file* fp)
+{
+    list_t head, n, tmp;
+    struct poll_link* pl;
+
+    FD_LOCK(fp);
+    head = &fp->f_plist;
+
+    for (n = list_first(head); n != head; n = list_next(n)) {
+        pl = list_entry(n, struct poll_link, _link);
+
+        /* FIXME: TODO -
+         * Should we mark POLLHUP?
+         * Should we wake the pollers?
+         */
+
+        /* Remove poll_link() */
+        tmp = n->prev;
+        list_remove(n);
+        free(pl);
+        n = tmp;
+    }
+
+    FD_UNLOCK(fp);
+}
+
+
 /*
  * Iterate all file descriptors and search for existing events,
  * Fill-in the revents for each fd in the poll.
