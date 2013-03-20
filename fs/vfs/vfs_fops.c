@@ -103,6 +103,11 @@ static int vfs_stat(struct file *fp, struct stat *st)
     return error;
 }
 
+static int vfs_poll(struct file *fp, int events)
+{
+    return (poll_no_poll(events));
+}
+
 struct fileops vfs_ops = {
     .fo_init = vfs_fo_init,
     .fo_close = vfs_close,
@@ -111,7 +116,7 @@ struct fileops vfs_ops = {
     .fo_ioctl = vfs_ioctl,
     .fo_stat = vfs_stat,
     .fo_truncate = NULL,
-    .fo_poll = NULL,
+    .fo_poll = vfs_poll,
     .fo_chmod = NULL,
 };
 
