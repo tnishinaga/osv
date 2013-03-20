@@ -4,6 +4,11 @@
 #include <osv/file.h>
 #include <fs/vfs/vfs.h>
 
+static int vfs_fo_init(struct file *fp)
+{
+    return 0;
+}
+
 static int vfs_close(struct file *fp)
 {
     vnode_t vp;
@@ -99,6 +104,7 @@ static int vfs_stat(struct file *fp, struct stat *st)
 }
 
 struct fileops vfs_ops = {
+    .fo_init = vfs_fo_init,
     .fo_close = vfs_close,
     .fo_read = vfs_read,
     .fo_write = vfs_write,

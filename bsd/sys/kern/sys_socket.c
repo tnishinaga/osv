@@ -47,6 +47,15 @@
 #include <bsd/sys/net/route.h>
 #include <bsd/sys/net/vnet.h>
 
+int
+soo_init(struct file *fp)
+{
+    struct socket *so = fp->f_data;
+    so->fp = fp;
+
+    return 0;
+}
+
 /* ARGSUSED */
 int
 soo_read(struct file *fp, struct uio *uio, int flags)
@@ -251,6 +260,7 @@ soo_close(struct file *fp)
 }
 
 struct fileops socketops = {
+    .fo_init = soo_init,
     .fo_read = soo_read,
     .fo_write = soo_write,
     .fo_truncate = soo_truncate,

@@ -69,6 +69,11 @@ int fget(int fd, struct file** out_fp)
     }
 
     fhold(fp);
+
+    /* FIXME: after the refcount increased, test that it is still allocated
+     * atomically, if not, check for a race
+     */
+
     *out_fp = fp;
 
     return (0);
@@ -109,6 +114,8 @@ void finit(struct file *fp, unsigned flags, filetype_t type, void *opaque, struc
     fp->f_type = type;
     fp->f_data = opaque;
     fp->f_ops = ops;
+
+    fo_init(fp);
 }
 
 void fhold(struct file* fp)
@@ -123,6 +130,12 @@ int fdrop(struct file* fp)
     if (__sync_fetch_and_sub((&(fp)->f_count), 1)) {
         return 0;
     }
+
+    /* We are about to free this file structure, but we still do things with it
+     * so we increase the refcount by one, fdrop may get called and we don't want
+     * to reach this point more than once.
+     */
+    fhold(fp);
 
     int fd = fp->f_fd;
     fo_close(fp);
@@ -149,6 +162,13 @@ invfo_chmod(struct file *fp, mode_t mode)
 
 
 /*-------------------------------------------------------------------*/
+
+static int
+badfo_init(struct file *fp)
+{
+
+    return (EBADF);
+}
 
 static int
 badfo_readwrite(struct file *fp, struct uio *uio, int flags)
@@ -200,6 +220,7 @@ badfo_chmod(struct file *fp, mode_t mode)
 }
 
 struct fileops badfileops = {
+    .fo_init = badfo_init,
     .fo_read = badfo_readwrite,
     .fo_write = badfo_readwrite,
     .fo_truncate = badfo_truncate,

@@ -78,6 +78,7 @@ typedef struct file *file_t;
 
 #define FOF_OFFSET  0x0800    /* Use the offset in uio argument */
 
+typedef int fo_init_t(struct file *fp);
 typedef int fo_rdwr_t(struct file *fp, struct uio *uio, int flags);
 typedef int fo_truncate_t(struct file *fp, off_t length);
 typedef int fo_ioctl_t(struct file *fp, u_long com, void *data);
@@ -88,6 +89,7 @@ typedef int fo_chmod_t(struct file *fp, mode_t mode);
 
 
 struct fileops {
+    fo_init_t   *fo_init;
     fo_rdwr_t   *fo_read;
     fo_rdwr_t   *fo_write;
     fo_truncate_t   *fo_truncate;
@@ -126,6 +128,7 @@ void finit(struct file *fp, unsigned flags, filetype_t type,
 /*
  * Easy inline functions for invoking the file operations
  */
+static __inline fo_init_t   fo_init;
 static __inline fo_rdwr_t   fo_read;
 static __inline fo_rdwr_t   fo_write;
 static __inline fo_truncate_t   fo_truncate;
@@ -134,6 +137,13 @@ static __inline fo_poll_t   fo_poll;
 static __inline fo_stat_t   fo_stat;
 static __inline fo_close_t  fo_close;
 static __inline fo_chmod_t  fo_chmod;
+
+static __inline int
+fo_init(struct file *fp)
+{
+
+    return ((*fp->f_ops->fo_init)(fp));
+}
 
 static __inline int
 fo_read(struct file *fp, struct uio *uio, int flags)
