@@ -112,6 +112,7 @@ struct poll_link {
 
 struct file;
 
+int poll_wake(struct file* fp, int events);
 int poll(struct pollfd _pfd[], nfds_t _nfds, int _timeout);
 void poll_drain(struct file* fp);
 int poll_no_poll(int events);
