@@ -35,13 +35,18 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
 #include <errno.h>
 
 #include <osv/file.h>
 #include <osv/poll.h>
 #include <osv/list.h>
+#include <osv/debug.h>
 
+#include <bsd/porting/netport.h>
 #include <bsd/porting/synch.h>
+
+#define dbg_d(...) tprintf("poll", logger_error, __VA_ARGS__)
 
 int poll_no_poll(int events)
 {
@@ -61,6 +66,8 @@ int poll_no_poll(int events)
 /* Drain the poll link list from the file... */
 void poll_drain(struct file* fp)
 {
+    dbg_d("poll_drain(%d)", fp->f_fd);
+
     list_t head, n, tmp;
     struct poll_link* pl;
 
@@ -94,6 +101,8 @@ void poll_drain(struct file* fp)
  */
 int poll_scan(struct pollfd _pfd[], nfds_t _nfds)
 {
+    dbg_d("poll_scan()");
+
     struct file* fp;
     struct pollfd* entry;
     int error, i;
@@ -116,6 +125,13 @@ int poll_scan(struct pollfd _pfd[], nfds_t _nfds)
             nr_events++;
         }
 
+        /*
+         * POSIX requires POLLOUT to be never
+         * set simultaneously with POLLHUP.
+         */
+        if ((entry->revents & POLLHUP) != 0)
+            entry->revents &= ~POLLOUT;
+
         fdrop(fp);
     }
 
@@ -126,20 +142,14 @@ int poll_scan(struct pollfd _pfd[], nfds_t _nfds)
  * Signal the file descriptor with changed events
  * This function is invoked when the file descriptor is changed.
  */
-int poll_wake(int fd, int events)
+int poll_wake(struct file* fp, int events)
 {
-    int error, i;
-    list_t head, n, tmp;
-    list_t head2, n2, tmp2;
+    dbg_d("poll_wake(%d, %d)", fp->f_fd, events);
 
-    struct poll_link* pl, *pl2;
-    struct pollreq* p;
-    struct pollfd* entry_pfd;
-    struct file *fp, *fp2;
+    list_t head, n;
+    struct poll_link* pl;
 
-    error = fget(fd, &fp);
-    if (error)
-        return EBADF;
+    fhold(fp);
 
     FD_LOCK(fp);
     head = &fp->f_plist;
@@ -154,8 +164,6 @@ int poll_wake(int fd, int events)
     /*
      * There may be several pollreqs associated with this fd.
      * Wake each and every one.
-     *
-     * Clears the pollreq references from other fds as well.
      */
     for (n = list_first(head); n != head; n = list_next(n)) {
         pl = list_entry(n, struct poll_link, _link);
@@ -165,52 +173,8 @@ int poll_wake(int fd, int events)
             continue;
         }
 
-        /* p is the current pollreq */
-        p = pl->_req;
-
-        /* Remove current pollreq from all file descriptors */
-        for (i = 0; i < p->_nfds; ++i) {
-            entry_pfd = &p->_pfd[i];
-            /* if the current entry is of the signaled fd, don't handle it here.
-             */
-            if (entry_pfd->fd == fd) {
-                continue;
-            }
-
-            fget(entry_pfd->fd, &fp2);
-
-            FD_LOCK(fp2);
-            if (list_empty(&fp2->f_plist)) {
-                FD_UNLOCK(fp2);
-                continue;
-            }
-
-            /* Search for current pollreq and remove it from list,
-             * Also, it may have more than one reference to a single pollreq*/
-            head2 = &fp2->f_plist;
-            for (n2 = list_first(head2); n2 != head2; n2 = list_next(n2)) {
-                pl2 = list_entry(n2, struct poll_link, _link);
-                if (pl2->_req == p) {
-                    tmp2 = n2->prev;
-                    list_remove(n2);
-                    free(pl2);
-                    n2 = tmp2;
-                }
-            }
-
-            FD_UNLOCK(fp2);
-            fdrop(fp2);
-
-        } /* End of clearing pollreq references from the other fds */
-
-        /* Now, free the poll_link of the signaled fd */
-        tmp = n->prev;
-        list_remove(n);
-        free(pl);
-        n = tmp;
-
         /* Wakeup the poller of this request */
-        wakeup((void*)p);
+        wakeup((void*)pl->_req);
     }
 
     FD_UNLOCK(fp);
@@ -219,17 +183,101 @@ int poll_wake(int fd, int events)
     return 0;
 }
 
+/*
+  * Add a pollreq reference to all file descriptors that participate
+  * The reference is added via struct poll_link
+  *
+  * Multiple poll requests can be issued on the same fd, so we manage
+  * the references in a linked list...
+  */
+void poll_install(struct pollreq* p)
+{
+    int i, error;
+    struct poll_link* pl;
+    struct file* fp;
+    struct pollfd* entry;
+
+    dbg_d("poll_install()");
+
+    for (i=0; i < p->_nfds; ++i) {
+        entry = &p->_pfd[i];
+
+        error = fget(entry->fd, &fp);
+        assert(error == 0);
+
+        /* Allocate a link */
+        pl = malloc(sizeof(struct poll_link));
+        memset(pl, 0, sizeof(struct poll_link));
+
+        /* Save a reference to request on current file structure.
+         * will be cleared on wakeup()
+         */
+        pl->_req = p;
+        pl->_events = entry->events;
+
+        FD_LOCK(fp);
+
+        /* Insert at the end */
+        list_insert(list_prev(&fp->f_plist), (list_t)pl);
+
+        FD_UNLOCK(fp);
+        fdrop(fp);
+    }
+}
+
+void poll_uninstall(struct pollreq* p)
+{
+    int i, error;
+    list_t head, n;
+    struct pollfd* entry_pfd;
+    struct poll_link* pl;
+    struct file* fp;
+
+    dbg_d("poll_uninstall()");
+
+    /* Remove pollreq from all file descriptors */
+    for (i=0; i < p->_nfds; ++i) {
+        entry_pfd = &p->_pfd[i];
+
+        error = fget(entry_pfd->fd, &fp);
+        if (error) {
+            continue;
+        }
+
+        FD_LOCK(fp);
+        if (list_empty(&fp->f_plist)) {
+            FD_UNLOCK(fp);
+            continue;
+        }
+
+        /* Search for current pollreq and remove it from list */
+        head = &fp->f_plist;
+        for (n = list_first(head); n != head; n = list_next(n)) {
+            pl = list_entry(n, struct poll_link, _link);
+            if (pl->_req == p) {
+                list_remove(n);
+                free(pl);
+                break;
+            }
+        }
+
+        FD_UNLOCK(fp);
+        fdrop(fp);
+
+    } /* End of clearing pollreq references from the other fds */
+}
+
 int poll(struct pollfd _pfd[], nfds_t _nfds, int _timeout)
 {
-    int nr_events, i;
-    struct pollfd* entry;
-    struct file* fp;
-    struct poll_link* pl;
+    int nr_events, error;
+    int timeout;
     struct pollreq p = {0};
     size_t pfd_sz = sizeof(struct pollfd) * _nfds;
 
     if (_nfds > FD_SETSIZE)
         return (EINVAL);
+
+    dbg_d("poll()");
 
     p._nfds = _nfds;
     p._timeout = _timeout;
@@ -241,46 +289,43 @@ int poll(struct pollfd _pfd[], nfds_t _nfds, int _timeout)
     if (nr_events) {
         memcpy(_pfd, p._pfd, pfd_sz);
         free(p._pfd);
+        return nr_events;
+    }
+
+    /* Timeout -> Don't wait... */
+    if (p._timeout == 0) {
+        memcpy(_pfd, p._pfd, pfd_sz);
+        free(p._pfd);
         return 0;
     }
 
-    /*
-     * Add a reference to this pollreq to all file descriptors
-     * The reference is added via struct poll_link
-     * Multiple poll requests can be issued on the same fd, so we manage
-     * the references in a linked list
-     */
-    for (i=0; i<_nfds; ++i) {
-        entry = &p._pfd[i];
-        fget(entry->fd, &fp);
+    /* Add pollreq references */
+    poll_install(&p);
 
-        /* Allocate a link */
-        pl = malloc(sizeof(struct poll_link));
-        memset(pl, 0, sizeof(struct poll_link));
-
-        /* Save a reference to request, the pollreq is saved on the stack,
-         * which is ok since this function is blocking, and all references
-         * will be cleared on wakeup()
-         */
-        pl->_req = &p;
-        pl->_events = entry->events;
-
-        FD_LOCK(fp);
-
-        /* Insert at the end */
-        list_insert(list_prev(&fp->f_plist), (list_t)pl);
-
-        FD_UNLOCK(fp);
-        fdrop(fp);
+    /* Timeout */
+    if (p._timeout < 0) {
+        timeout = 0;
+    } else {
+        /* Convert timeout of ms to hz */
+        timeout = p._timeout*(hz/1000L);
     }
 
-    /* Block until there's a change with one of the file descriptors */
-    msleep((void *)&p, NULL, 0, "poll", p._timeout);
+    /* Block  */
+    error = msleep((void *)&p, NULL, 0, "poll", timeout);
+    if (error != EWOULDBLOCK) {
+        nr_events = poll_scan(p._pfd, _nfds);
+    } else {
+        nr_events = 0;
+    }
 
-    /* Rescan and return (copy-out) */
-    poll_scan(p._pfd, _nfds);
+    /* Remove pollreq references */
+    poll_uninstall(&p);
+
+    /* return (copy-out) */
     memcpy(_pfd, p._pfd, pfd_sz);
     free(p._pfd);
 
-    return 0;
+    return nr_events;
 }
+
+#undef dbg_d
