@@ -34,6 +34,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <assert.h>
 
 /*
  * Generic "syscalls" functions wrappers around the fileops abstraction.
@@ -50,6 +51,10 @@ sys_close(int fd)
     error = fget(fd, &fp);
     if (error)
         return error;
+
+    /* Free file descriptor */
+    error = fdfree(fd);
+    assert(error == 0);
 
     /* Release one ref we got by calling fget(); */
     fdrop(fp);

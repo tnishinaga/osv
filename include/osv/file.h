@@ -66,7 +66,6 @@ struct file {
     void*               f_data;     /* file descriptor specific data */
     filetype_t          f_type;     /* descriptor type */
     int                 f_flags;    /* fcntl flags */
-    int                 f_fd;       /* numeral file descriptor */
     struct list_head    f_plist;    /* poll requests */
     mutex_t             f_lock;     /* lock */
 };
@@ -109,6 +108,7 @@ fo_chmod_t  invfo_chmod;
 /* Alloc an fd for fp */
 int fdalloc(struct file* fp);
 int fdset(int fd, struct file* fp);
+int fdfree(int fd);
 
 /*
  * File descriptors reference count

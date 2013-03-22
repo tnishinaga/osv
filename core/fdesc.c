@@ -41,7 +41,7 @@ int fdset(int fd, struct file* fp)
     return 0;
 }
 
-static int fdfree(int fd)
+int fdfree(int fd)
 {
     struct file* fp;
     if ( (fd < 0) || (fd >= FDMAX) ) {
@@ -93,7 +93,6 @@ int falloc(struct file **resultfp, int *resultfd)
     memset(fp, 0, sz);
 
     fd = fdalloc(fp);
-    fp->f_fd = fd;
     fp->f_ops = &badfileops;
     list_init(&fp->f_plist);
     mutex_init(&fp->f_lock);
@@ -125,8 +124,6 @@ void fhold(struct file* fp)
 
 int fdrop(struct file* fp)
 {
-    int error;
-
     if (__sync_fetch_and_sub((&(fp)->f_count), 1)) {
         return 0;
     }
@@ -137,15 +134,10 @@ int fdrop(struct file* fp)
      */
     fhold(fp);
 
-    int fd = fp->f_fd;
     fo_close(fp);
 
     poll_drain(fp);
     mutex_destroy(&fp->f_lock);
-
-    /* Free file descriptor */
-    error = fdfree(fd);
-    assert(error == 0);
 
     free(fp);
 

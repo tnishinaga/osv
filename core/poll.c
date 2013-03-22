@@ -66,7 +66,7 @@ int poll_no_poll(int events)
 /* Drain the poll link list from the file... */
 void poll_drain(struct file* fp)
 {
-    dbg_d("poll_drain(%d)", fp->f_fd);
+    dbg_d("poll_drain()");
 
     list_t head, n, tmp;
     struct poll_link* pl;
@@ -144,7 +144,7 @@ int poll_scan(struct pollfd _pfd[], nfds_t _nfds)
  */
 int poll_wake(struct file* fp, int events)
 {
-    dbg_d("poll_wake(%d, %d)", fp->f_fd, events);
+    dbg_d("poll_wake(%d)", events);
 
     list_t head, n;
     struct poll_link* pl;
