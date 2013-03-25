@@ -14,7 +14,7 @@ extern "C" {
 #include "debug.hh"
 #include "tst-hub.hh"
 
-#define dbg_d(...)   logger::instance()->log("tst-sockets", logger_error, __VA_ARGS__)
+#define dbg_d(...)   logger::instance()->wrt("tst-sockets", logger_error, __VA_ARGS__)
 
 const int stup_maxfds = 5;
 const int stup_fport = 5000;
