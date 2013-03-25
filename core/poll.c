@@ -144,6 +144,8 @@ int poll_scan(struct pollfd _pfd[], nfds_t _nfds)
  */
 int poll_wake(struct file* fp, int events)
 {
+    if (!fp)
+        return 0;
     dbg_d("poll_wake(%d)", events);
 
     list_t head, n;
