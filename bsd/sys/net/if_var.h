@@ -33,9 +33,6 @@
 #ifndef	_NET_IF_VAR_H_
 #define	_NET_IF_VAR_H_
 
-#include <bsd/porting/rwlock.h>
-#include <bsd/sys/net/if.h>
-
 __BEGIN_DECLS
 
 /*
@@ -91,6 +88,7 @@ struct	vnet;
 #include <bsd/sys/net/if.h>
 #include <bsd/sys/sys/socket.h>
 #include <bsd/porting/rwlock.h>
+#include <bsd/porting/sync_stub.h>
 
 #define	IF_DUNIT_NONE	-1
 
