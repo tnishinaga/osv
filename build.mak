@@ -4,8 +4,11 @@ cmdline = java.so Hello
 #cmdline = testrunner.so
 INCLUDES = -I. -I$(src)/arch/$(arch) -I$(src) -I$(src)/external/libunwind/include -I$(src)/include
 INCLUDES += -I$(src)/external/acpica/source/include
-COMMON = $(autodepend) -g -Wall -Wno-pointer-arith -Werror -Wformat=0 \
-	-D __BSD_VISIBLE=1 -U _FORTIFY_SOURCE -fno-stack-protector $(INCLUDES) \
+
+COMMON = $(autodepend) -g -Werror -Wall \
+	-Wno-pointer-arith -Wno-unknown-pragmas -Wformat=0 \
+	-D__BSD_VISIBLE=1 -U _FORTIFY_SOURCE \
+	-fno-stack-protector $(INCLUDES) \
 	$(arch-cflags) $(conf-opt) $(acpi-defines) $(tracing-flags) \
 	$(configuration)
 
@@ -176,6 +179,7 @@ bsd += bsd/sys/xdr/xdr_mem.o
 
 solaris :=
 solaris += bsd/sys/cddl/contrib/opensolaris/common/avl/avl.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/unicode/u8_textprep.o
 
 $(solaris): CFLAGS+= \
 	-D_KERNEL \
