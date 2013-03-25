@@ -32,7 +32,6 @@
 #ifdef _KERNEL
 
 #include <sys/param.h>
-#include_next <sys/systm.h>
 
 #include <sys/string.h>
 

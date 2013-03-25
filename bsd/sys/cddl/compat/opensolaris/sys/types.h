@@ -35,6 +35,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #ifdef _KERNEL
 typedef	int64_t		clock_t;
@@ -68,6 +69,8 @@ typedef	u_int		minor_t;
 #define	B_FALSE	0
 #define	B_TRUE	1
 
+typedef bool		boolean_t;
+
 typedef	short		index_t;
 typedef	off_t		offset_t;
 typedef	long		ptrdiff_t;	/* pointer difference */
@@ -85,7 +88,5 @@ typedef	int32_t		time32_t;
 typedef	u_longlong_t	diskaddr_t;
 
 #endif	/* !_KERNEL */
-
-typedef enum { B_FALSE, B_TRUE }	boolean_t;
 
 #endif	/* !_OPENSOLARIS_SYS_TYPES_H_ */

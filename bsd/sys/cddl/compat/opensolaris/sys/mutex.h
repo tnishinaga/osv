@@ -33,9 +33,9 @@
 
 #include <sys/param.h>
 #include <sys/lock.h>
-#include_next <sys/mutex.h>
-#include <sys/proc.h>
-#include <sys/sx.h>
+//#include_next <sys/mutex.h>
+//#include <sys/proc.h>
+//#include <sys/sx.h>
 
 typedef enum {
 	MUTEX_DEFAULT = 6	/* kernel default mutex */
