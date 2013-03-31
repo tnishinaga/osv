@@ -32,8 +32,7 @@
 #ifdef _KERNEL
 
 #include <sys/param.h>
-
-#include <sys/string.h>
+#include <string.h>
 
 #define	PAGESIZE	PAGE_SIZE
 #define	PAGEOFFSET	(PAGESIZE - 1)

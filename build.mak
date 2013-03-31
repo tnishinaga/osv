@@ -186,13 +186,23 @@ solaris += bsd/sys/cddl/contrib/opensolaris/common/nvpair/fnvpair.o
 solaris += bsd/sys/cddl/contrib/opensolaris/common/nvpair/nvpair.o
 solaris += bsd/sys/cddl/contrib/opensolaris/common/nvpair/nvpair_alloc_fixed.o
 solaris += bsd/sys/cddl/contrib/opensolaris/common/unicode/u8_textprep.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfeature_common.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfs_comutil.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfs_deleg.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfs_fletcher.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfs_ioctl_compat.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfs_namecheck.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfs_prop.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zpool_prop.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zprop_common.o
 solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/os/nvpair_alloc_system.o
 
 $(solaris): CFLAGS+= \
 	-D_KERNEL \
 	-I$(src)/bsd/sys \
+	-I$(src)/bsd/sys/cddl/compat/opensolaris \
 	-I$(src)/bsd/sys/cddl/contrib/opensolaris/uts/common \
-	-I$(src)/bsd/sys/cddl/compat/opensolaris
+	-I$(src)/bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs
 
 drivers :=
 drivers += drivers/console.o drivers/vga.o drivers/isa-serial.o
