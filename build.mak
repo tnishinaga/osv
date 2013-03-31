@@ -178,8 +178,15 @@ bsd += bsd/sys/xdr/xdr_array.o
 bsd += bsd/sys/xdr/xdr_mem.o
 
 solaris :=
+solaris += bsd/sys/cddl/compat/opensolaris/kern/opensolaris_cmn_err.o
+solaris += bsd/sys/cddl/compat/opensolaris/kern/opensolaris_kmem.o
+solaris += bsd/sys/cddl/compat/opensolaris/kern/opensolaris_sunddi.o
 solaris += bsd/sys/cddl/contrib/opensolaris/common/avl/avl.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/nvpair/fnvpair.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/nvpair/nvpair.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/nvpair/nvpair_alloc_fixed.o
 solaris += bsd/sys/cddl/contrib/opensolaris/common/unicode/u8_textprep.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/os/nvpair_alloc_system.o
 
 $(solaris): CFLAGS+= \
 	-D_KERNEL \
