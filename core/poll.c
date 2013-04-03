@@ -151,15 +151,12 @@ int poll_wake(struct file* fp, int events)
     list_t head, n;
     struct poll_link* pl;
 
-    fhold(fp);
-
     FD_LOCK(fp);
     head = &fp->f_plist;
 
     /* Anyone polls? */
     if (list_empty(head)) {
         FD_UNLOCK(fp);
-        fdrop(fp);
         return EINVAL;
     }
 
@@ -180,7 +177,6 @@ int poll_wake(struct file* fp, int events)
     }
 
     FD_UNLOCK(fp);
-    fdrop(fp);
 
     return 0;
 }
