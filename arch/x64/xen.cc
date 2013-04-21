@@ -1,4 +1,5 @@
 #include "osv/types.h"
+#include "xen.hh"
 #include <xen/xen.h>
 
 // make sure xen_start_info is not in .bss, or it will be overwritten
@@ -9,6 +10,8 @@ extern char xen_hypercall_page[];
 extern "C" { ulong xen_hypercall_5(ulong a1, ulong a2, ulong a3, ulong a4, ulong a5, unsigned type); }
 
 namespace xen {
+
+bool is_enabled;
 
 // we only have asm constraints for the first three hypercall args,
 // so we only inline hypercalls with <= 3 args.  The others are out-of-line,
@@ -66,6 +69,12 @@ inline ulong
 hypercall(unsigned type, T... args)
 {
     return hypercall(type, cast_pointer(args)...);
+}
+
+__attribute__((constructor(101)))
+void setup()
+{
+    is_enabled = true;
 }
 
 }
