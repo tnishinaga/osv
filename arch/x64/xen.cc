@@ -96,8 +96,30 @@ set_segment_base(u32 segment, u64 base)
     return hypercall(__HYPERVISOR_set_segment_base, segment, base);
 }
 
+inline void
+mmu_hypercall(mmu_update_t *req, unsigned long nr)
+{
+    unsigned long count;
+    ulong ret = hypercall(__HYPERVISOR_mmu_update, cast_pointer(req), nr, cast_pointer(&count), DOMID_SELF);
+    assert(ret == 0);
+    assert(nr == count);
+}
+
+inline void
+update_va_mapping(void *va, unsigned long pa)
+{
+    ulong ret = hypercall(__HYPERVISOR_update_va_mapping, cast_pointer(va), (pa | 0x67), UVMF_INVLPG);
+    assert(ret == 0);
+}
+
+inline void
+update_va_mapping(void *va, unsigned long pa, int flags)
+{
+    ulong ret = hypercall(__HYPERVISOR_update_va_mapping, cast_pointer(va), (pa | flags), UVMF_INVLPG);
+    assert(ret == 0);
+}
+
 struct xen_shared_info xen_shared_info __attribute__((aligned(4096)));
-extern void* xen_bootstrap_end;
 
 static bool xen_pci_enabled()
 {
@@ -127,6 +149,23 @@ static void xen_ack_irq()
 {
     auto cpu = sched::cpu::current();
     HYPERVISOR_shared_info->vcpu_info[cpu->id].evtchn_upcall_pending = 0; 
+}
+static u64 *mfn_list;
+static unsigned long nr_pages;
+
+void setup_free_memory()
+{
+    auto ret = hypercall(__HYPERVISOR_vm_assist, VMASST_CMD_enable, VMASST_TYPE_writable_pagetables);
+    assert(ret == 0);
+
+    mfn_list = reinterpret_cast<u64*>(xen_start_info->mfn_list);
+    nr_pages = xen_start_info->nr_pages;
+
+    // Because we have xen_shared_info inside our ELF, we know for sure that
+    // this is already backed by inner level page tables. We can therefore use
+    // the much simpler update_va_mapping to establish the mapping.
+    update_va_mapping(&xen_shared_info, xen_start_info->shared_info);
+    HYPERVISOR_shared_info = reinterpret_cast<shared_info_t *>(&xen_shared_info);
 }
 
 int xen_write_msr(u32 index, u64 data)

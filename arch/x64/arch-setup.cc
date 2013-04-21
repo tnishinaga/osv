@@ -6,6 +6,7 @@
 #include <osv/types.h>
 #include <alloca.h>
 #include <string.h>
+#include "xen.hh"
 
 using namespace mmu;
 
@@ -106,6 +107,9 @@ extern void* elf_start;
 
 void arch_setup_free_memory()
 {
+
+    XENPV_ALTERNATIVE({}, { xen::setup_free_memory(); return; });
+
     static ulong edata;
     asm ("movl $.edata, %0" : "=rm"(edata));
     // copy to stack so we don't free it now

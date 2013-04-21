@@ -48,6 +48,7 @@ extern struct xen_shared_info xen_shared_info;
 void xen_set_callback(void);
 int xen_write_msr(u32 index, u64 data);
 u64 xen_read_msr(u32 index);
+void setup_free_memory(void);
 
 }
 
