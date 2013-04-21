@@ -34,6 +34,7 @@ xen_bootstrap_end: .quad 0
 
 .text
 .align 4096
+.global xen_hypercall_page
 xen_hypercall_page:
         1: jmp 1b
 .align 4096
@@ -45,3 +46,11 @@ xen_start:
     call xen_init
     jmp start64
 
+
+.global xen_hypercall_5
+xen_hypercall_5:
+    // rdi, rsi, rdx, r8 already loaded correctly
+    mov %rcx, %r10
+    shl $5, %r9 // type
+    lea xen_hypercall_page(%r9), %r9
+    jmp *%r9
