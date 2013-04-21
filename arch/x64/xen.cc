@@ -1,6 +1,8 @@
 #include "osv/types.h"
 #include "xen.hh"
 #include <xen/xen.h>
+#include "mmu.hh"
+#include "mempool.hh"
 
 // make sure xen_start_info is not in .bss, or it will be overwritten
 // by init code, as xen_init() is called before .bss initialization
@@ -69,6 +71,25 @@ inline ulong
 hypercall(unsigned type, T... args)
 {
     return hypercall(type, cast_pointer(args)...);
+}
+
+void setup_free_memory()
+{
+    auto ret = hypercall(__HYPERVISOR_vm_assist, VMASST_CMD_enable, VMASST_TYPE_writable_pagetables);
+    assert(ret == 0);
+    u64* base_pt = reinterpret_cast<u64*>(xen_start_info->pt_base);
+    // FIXME: is 1:1 virt:phys guaranteed? what if the kernel is at 0xffffblah?
+    auto base_pt_pfn = (xen_start_info->pt_base) >> 12;
+    auto mfn_list = reinterpret_cast<const u64*>(xen_start_info->mfn_list);
+    auto base_pt_mfn = mfn_list[base_pt_pfn];
+    // FIXME: assumes phys_map at 0xffffc00000000000
+    ulong ptr = (base_pt_mfn << 12) | 0xc00;
+    ptr |= MMU_NORMAL_PT_UPDATE;
+    mmu_update req { ptr, base_pt[0] };
+    unsigned done;
+    ret = hypercall(__HYPERVISOR_mmu_update, &req, 1, &done, DOMID_SELF);
+    assert(ret == 0);
+    assert(done == 1);
 }
 
 __attribute__((constructor(101)))
