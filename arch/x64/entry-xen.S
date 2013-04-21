@@ -34,6 +34,7 @@ xen_hypercall_page:
 .align 4096
 
 xen_start:
+    mov $0x200000, %ebp  // elf header; FIXME: determine dynamically
     mov %rsi, %rdi
     call xen_init
     jmp start64
