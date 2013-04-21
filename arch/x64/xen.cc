@@ -1,7 +1,9 @@
 #include "osv/types.h"
 #include <xen/xen.h>
 
-struct start_info* xen_start_info;
+// make sure xen_start_info is not in .bss, or it will be overwritten
+// by init code, as xen_init() is called before .bss initialization
+struct start_info* xen_start_info = reinterpret_cast<start_info*>(1);
 extern void* xen_bootstrap_end;
 extern char xen_hypercall_page[];
 extern "C" { ulong xen_hypercall_5(ulong a1, ulong a2, ulong a3, ulong a4, ulong a5, unsigned type); }
