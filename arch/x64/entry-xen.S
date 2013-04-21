@@ -34,5 +34,7 @@ xen_hypercall_page:
 .align 4096
 
 xen_start:
-        1: jmp 1b
+    mov %rsi, %rdi
+    call xen_init
+    jmp start64
 
