@@ -172,6 +172,10 @@ void setup_free_memory()
     ret = hypercall(__HYPERVISOR_mmu_update, &req, 1, &done, DOMID_SELF);
     assert(ret == 0);
     assert(done == 1);
+
+    // Xen pre-maps 512KB of free memory
+    auto free_mem = static_cast<char*>(free_mem_end) - static_cast<char*>(free_mem_start);
+    memory::free_initial_memory_range(free_mem_start, free_mem);
 }
 
 __attribute__((constructor(101)))
