@@ -3,6 +3,7 @@
 
 #include "processor.hh"
 #include "msr.hh"
+#include "xen.hh"
 
 // namespace arch - architecture independent interface for architecture
 //                  dependent operations (e.g. irq_disable vs. cli)
@@ -11,12 +12,20 @@ namespace arch {
 
 inline void irq_disable()
 {
-    processor::cli();
+    if (!xen::enabled()) {
+        processor::cli();
+    } else {
+        xen::irq_disable();
+    }
 }
 
 inline void irq_enable()
 {
-    processor::sti();
+    if (!xen::enabled()) {
+        processor::sti();
+    } else {
+        xen::irq_enable();
+    }
 }
 
 inline void wait_for_interrupt()

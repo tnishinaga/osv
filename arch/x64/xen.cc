@@ -14,6 +14,7 @@ extern "C" { ulong xen_hypercall_5(ulong a1, ulong a2, ulong a3, ulong a4, ulong
 namespace xen {
 
 bool is_enabled;
+unsigned __thread vcpu_id;
 
 // we only have asm constraints for the first three hypercall args,
 // so we only inline hypercalls with <= 3 args.  The others are out-of-line,
