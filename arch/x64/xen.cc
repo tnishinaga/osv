@@ -3,13 +3,20 @@
 #include <xen/xen.h>
 #include "mmu.hh"
 #include "mempool.hh"
+#include "exceptions.hh"
 
 // make sure xen_start_info is not in .bss, or it will be overwritten
 // by init code, as xen_init() is called before .bss initialization
 struct start_info* xen_start_info = reinterpret_cast<start_info*>(1);
 extern void* xen_bootstrap_end;
 extern char xen_hypercall_page[];
+extern char ex_xen_event_dummy[];
 extern "C" { ulong xen_hypercall_5(ulong a1, ulong a2, ulong a3, ulong a4, ulong a5, unsigned type); }
+
+extern "C"
+void xen_event_dummy(exception_frame* ef)
+{
+}
 
 namespace xen {
 
@@ -84,6 +91,11 @@ void setup_free_memory()
 {
     auto ret = hypercall(__HYPERVISOR_vm_assist, VMASST_CMD_enable, VMASST_TYPE_writable_pagetables);
     assert(ret == 0);
+
+    ret = hypercall(__HYPERVISOR_set_callbacks, ex_xen_event_dummy,
+                    ex_xen_event_dummy, 0);
+    assert(ret == 0);
+
     u64* base_pt = reinterpret_cast<u64*>(xen_start_info->pt_base);
     // FIXME: is 1:1 virt:phys guaranteed? what if the kernel is at 0xffffblah?
     auto base_pt_pfn = (xen_start_info->pt_base) >> 12;

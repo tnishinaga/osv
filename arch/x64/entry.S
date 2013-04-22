@@ -80,6 +80,8 @@ exception_error_entry ex_ac, alignment_check
 exception_noerror_entry ex_mc, machine_check
 exception_noerror_entry ex_xm, simd_exception
 
+exception_noerror_entry ex_xen_event_dummy, xen_event_dummy
+
 .align 16
 .global interrupt_entry
 interrupt_entry:
