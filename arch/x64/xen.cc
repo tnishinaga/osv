@@ -73,6 +73,12 @@ hypercall(unsigned type, T... args)
     return hypercall(type, cast_pointer(args)...);
 }
 
+unsigned pt_index(void* vaddr, unsigned level)
+{
+    ulong v = reinterpret_cast<ulong>(vaddr);
+    return (v >> (12 + level * 9)) & 511;
+}
+
 void setup_free_memory()
 {
     auto ret = hypercall(__HYPERVISOR_vm_assist, VMASST_CMD_enable, VMASST_TYPE_writable_pagetables);
@@ -81,12 +87,75 @@ void setup_free_memory()
     // FIXME: is 1:1 virt:phys guaranteed? what if the kernel is at 0xffffblah?
     auto base_pt_pfn = (xen_start_info->pt_base) >> 12;
     auto mfn_list = reinterpret_cast<const u64*>(xen_start_info->mfn_list);
+    auto nr_pages = xen_start_info->nr_pages;
     auto base_pt_mfn = mfn_list[base_pt_pfn];
     // FIXME: assumes phys_map at 0xffffc00000000000
     ulong ptr = (base_pt_mfn << 12) | 0xc00;
     ptr |= MMU_NORMAL_PT_UPDATE;
     mmu_update req { ptr, base_pt[0] };
     unsigned done;
+    ret = hypercall(__HYPERVISOR_mmu_update, &req, 1, &done, DOMID_SELF);
+    assert(ret == 0);
+    assert(done == 1);
+    void* free_mem_start = xen_bootstrap_end;
+    void* free_mem_end = free_mem_start + 512 * 1024;
+
+    auto tmp_alloc_pt = [&]() { return static_cast<u64*>(free_mem_end -= 4096); };
+
+    auto tmp_v2m = [=](void* v) {
+        // FIXME: is 1:1 virt:phys guaranteed? what if the kernel is at 0xffffblah?
+        return (mfn_list[reinterpret_cast<ulong>(v) >> 12] << 12)
+                | (reinterpret_cast<ulong>(v) & 4095);
+    };
+
+    auto tmp_m2p = [=](u64 m) {
+        return std::find(mfn_list, mfn_list + nr_pages, m) - mfn_list;
+    };
+
+    auto tmp_p2v = [=](u64 p) {
+        // FIXME: is this guaranteed?
+        return reinterpret_cast<void*>(p << 12);
+    };
+
+    auto tmp_m2v = [=](u64 m) {
+        return tmp_p2v(tmp_m2p(m));
+    };
+
+    auto down_one_level = [=](u64* table, void* v, unsigned level) {
+        u64 pte = table[pt_index(v, level)];
+        assert(pte & 1);
+        u64 mfn = pte >> 12;
+        return static_cast<u64*>(tmp_m2v(mfn));
+    };
+
+    auto mark_page_ro = [=](void* v) {
+        u64* pt = down_one_level(base_pt, v, 3);
+        pt = down_one_level(pt, v, 2);
+        pt = down_one_level(pt, v, 1);
+        auto ptep = &pt[pt_index(v, 0)];
+        mmu_update req = { tmp_v2m(ptep) | MMU_NORMAL_PT_UPDATE, *ptep & ~(u64)2 };
+        unsigned done;
+        auto ret = hypercall(__HYPERVISOR_mmu_update, &req, 1, &done);
+        assert(ret == 0 && done == 1);
+    };
+
+    auto tmp_pt_l0 = tmp_alloc_pt();
+    auto tmp_pt_l1 = tmp_alloc_pt();
+    auto tmp_pt_l2 = tmp_alloc_pt();
+
+    // force-map shared_info into temporary page table so irq enable/disable can work
+    tmp_pt_l0[pt_index(shared, 0)] = (xen_start_info->shared_info) | 0x67;
+    tmp_pt_l1[pt_index(shared, 1)] = tmp_v2m(tmp_pt_l0) | 0x67;
+    tmp_pt_l2[pt_index(shared, 2)] = tmp_v2m(tmp_pt_l1) | 0x67;
+
+    // mark page tables read-only for Xen
+    mark_page_ro(tmp_pt_l2);
+    mark_page_ro(tmp_pt_l1);
+    mark_page_ro(tmp_pt_l0);
+
+    assert(base_pt[pt_index(shared, 3)] == 0);
+    req.ptr = (base_pt_mfn << 12) | (pt_index(shared, 3) * 8) | MMU_NORMAL_PT_UPDATE;
+    req.val = tmp_v2m(tmp_pt_l2) | 0x67;
     ret = hypercall(__HYPERVISOR_mmu_update, &req, 1, &done, DOMID_SELF);
     assert(ret == 0);
     assert(done == 1);
