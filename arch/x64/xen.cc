@@ -18,6 +18,8 @@ void xen_event_dummy(exception_frame* ef)
 {
 }
 
+using namespace mmu;
+
 namespace xen {
 
 bool is_enabled;
@@ -81,12 +83,6 @@ hypercall(unsigned type, T... args)
     return hypercall(type, cast_pointer(args)...);
 }
 
-unsigned pt_index(void* vaddr, unsigned level)
-{
-    ulong v = reinterpret_cast<ulong>(vaddr);
-    return (v >> (12 + level * 9)) & 511;
-}
-
 void setup_free_memory()
 {
     auto ret = hypercall(__HYPERVISOR_vm_assist, VMASST_CMD_enable, VMASST_TYPE_writable_pagetables);
@@ -102,8 +98,7 @@ void setup_free_memory()
     auto mfn_list = reinterpret_cast<const u64*>(xen_start_info->mfn_list);
     auto nr_pages = xen_start_info->nr_pages;
     auto base_pt_mfn = mfn_list[base_pt_pfn];
-    // FIXME: assumes phys_map at 0xffffc00000000000
-    ulong ptr = (base_pt_mfn << 12) | 0xc00;
+    ulong ptr = (base_pt_mfn << 12) | (pt_index(phys_mem, 3) * 8);
     ptr |= MMU_NORMAL_PT_UPDATE;
     mmu_update req { ptr, base_pt[0] };
     unsigned done;
