@@ -5,8 +5,11 @@ cmdline = java.so -jar /usr/lib/jvm/jre/lib/rhino.jar -f console/cli.js
 #cmdline = java.so Hello
 INCLUDES = -I. -I$(src)/arch/$(arch) -I$(src) -I$(src)/external/libunwind/include -I$(src)/include
 INCLUDES += -I$(src)/external/acpica/source/include
-COMMON = $(autodepend) -g -Wall -Wno-pointer-arith -Werror -Wformat=0 \
-	-D __BSD_VISIBLE=1 -U _FORTIFY_SOURCE -fno-stack-protector $(INCLUDES) \
+
+COMMON = $(autodepend) -g -Werror -Wall \
+	-Wno-pointer-arith -Wno-unknown-pragmas -Wformat=0 \
+	-D__BSD_VISIBLE=1 -U _FORTIFY_SOURCE \
+	-fno-stack-protector $(INCLUDES) \
 	$(arch-cflags) $(conf-opt) $(acpi-defines) $(tracing-flags) \
 	$(configuration)
 
@@ -194,11 +197,38 @@ bsd += bsd/sys/xdr/xdr.o
 bsd += bsd/sys/xdr/xdr_array.o
 bsd += bsd/sys/xdr/xdr_mem.o
 
+solaris :=
+solaris += bsd/sys/cddl/compat/opensolaris/kern/opensolaris_cmn_err.o
+solaris += bsd/sys/cddl/compat/opensolaris/kern/opensolaris_kmem.o
+solaris += bsd/sys/cddl/compat/opensolaris/kern/opensolaris_sunddi.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/avl/avl.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/nvpair/fnvpair.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/nvpair/nvpair.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/nvpair/nvpair_alloc_fixed.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/unicode/u8_textprep.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfeature_common.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfs_comutil.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfs_deleg.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfs_fletcher.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfs_ioctl_compat.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfs_namecheck.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfs_prop.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zpool_prop.o
+solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zprop_common.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/os/nvpair_alloc_system.o
+
+$(solaris): CFLAGS+= \
+	-D_KERNEL \
+	-I$(src)/bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs \
+	-I$(src)/bsd/sys/cddl/contrib/opensolaris/uts/common \
+	-I$(src)/bsd/sys/cddl/compat/opensolaris \
+	-I$(src)/bsd/sys
+
 drivers :=
 drivers += drivers/console.o drivers/vga.o drivers/isa-serial.o
 drivers += drivers/debug-console.o
 drivers += drivers/ramdisk.o
-drivers += $(bsd)
+drivers += $(bsd) $(solaris)
 drivers += core/mmu.o
 drivers += core/elf.o
 drivers += core/interrupt.o
