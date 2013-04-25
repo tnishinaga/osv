@@ -30,6 +30,7 @@
 #ifndef _SYS_SYSMACROS_H
 #define	_SYS_SYSMACROS_H
 
+#include <sys/types.h>
 #include <sys/param.h>
 #include <sys/isa_defs.h>
 
@@ -380,7 +381,7 @@ extern unsigned char bcd_to_byte[256];
  * High order bit is 31 (or 63 in _LP64 kernel).
  */
 static __inline int
-highbit(ulong_t i)
+highbit(unsigned long i)
 {
 	register int h = 1;
 

@@ -31,7 +31,7 @@
 
 #ifdef _KERNEL
 
-#include <sys/jail.h>
+//#include <sys/jail.h>
 
 /*
  * Macros to help with zone visibility restrictions.

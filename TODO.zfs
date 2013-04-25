@@ -1,0 +1,4 @@
+
+ - find real backing information for max_ncpus
+ - make the curthread macro do something useful
+ - make SYSINIT do the right thing

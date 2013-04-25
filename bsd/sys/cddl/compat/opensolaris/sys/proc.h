@@ -30,11 +30,10 @@
 #define	_OPENSOLARIS_SYS_PROC_H_
 
 #include <sys/param.h>
-#include <sys/kthread.h>
-#include_next <sys/proc.h>
-#include <sys/stdint.h>
-#include <sys/smp.h>
-#include <sys/sched.h>
+//#include_next <sys/proc.h>
+#include <stdint.h>
+//#include <sys/smp.h>
+//#include <sys/sched.h>
 #include <sys/lock.h>
 #include <sys/mutex.h>
 #include <sys/unistd.h>
@@ -55,13 +54,17 @@
 #define	t_tid	td_tid
 
 typedef	short		pri_t;
-typedef	struct thread	_kthread;
-typedef	struct thread	kthread_t;
-typedef struct thread	*kthread_id_t;
+typedef	struct pthread	_kthread;
+typedef	struct pthread	kthread_t;
+typedef struct pthread	*kthread_id_t;
 typedef struct proc	proc_t;
 
 extern struct proc *zfsproc;
 
+// horrible hack for ZIO, will fail for code not abusing curthread as a boolean true
+#define curthread	((kthread_t *)1)
+
+#if 0
 static __inline kthread_t *
 thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
     size_t len, proc_t *pp, int state, pri_t pri)
@@ -87,6 +90,7 @@ thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
 	}
 	return (td);
 }
+#endif
 
 #define	thread_exit()	kthread_exit()
 

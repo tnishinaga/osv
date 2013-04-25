@@ -1725,7 +1725,7 @@ static void
 zio_write_gang_member_ready(zio_t *zio)
 {
 	zio_t *pio = zio_unique_parent(zio);
-	zio_t *gio = zio->io_gang_leader;
+//	zio_t *gio = zio->io_gang_leader;
 	dva_t *cdva = zio->io_bp->blk_dva;
 	dva_t *pdva = pio->io_bp->blk_dva;
 	uint64_t asize;
@@ -2094,7 +2094,7 @@ static void
 zio_ddt_ditto_write_done(zio_t *zio)
 {
 	int p = DDT_PHYS_DITTO;
-	zio_prop_t *zp = &zio->io_prop;
+//	zio_prop_t *zp = &zio->io_prop;
 	blkptr_t *bp = zio->io_bp;
 	ddt_t *ddt = ddt_select(zio->io_spa, bp);
 	ddt_entry_t *dde = zio->io_private;

@@ -25,9 +25,9 @@
 #ifndef	_SYS_REFCOUNT_H
 #define	_SYS_REFCOUNT_H
 
+#include <bsd/sys/sys/refcount.h>
 #include <sys/cdefs.h>
 #include <sys/types.h>
-#include_next <sys/refcount.h>
 #include <sys/list.h>
 #include <sys/zfs_context.h>
 

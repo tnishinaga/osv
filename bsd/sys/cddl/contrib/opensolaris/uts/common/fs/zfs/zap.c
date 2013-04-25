@@ -41,7 +41,7 @@
 #include <sys/spa.h>
 #include <sys/dmu.h>
 #include <sys/zfs_context.h>
-#include <sys/zfs_znode.h>
+//#include <sys/zfs_znode.h>
 #include <sys/fs/zfs.h>
 #include <sys/zap.h>
 #include <sys/refcount.h>
