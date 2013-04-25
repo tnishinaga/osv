@@ -31,11 +31,9 @@
 #ifndef _SYS_CMN_ERR_H
 #define	_SYS_CMN_ERR_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+#include <stdarg.h>
 
-#if defined(_KERNEL) && !defined(_ASM)
-#include <sys/va_list.h>
-#endif
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #ifdef	__cplusplus
 extern "C" {
@@ -71,11 +69,6 @@ extern void zcmn_err(zoneid_t, int, const char *, ...)
     __KPRINTFLIKE(3);
 #pragma rarely_called(zcmn_err)
 
-/*PRINTFLIKE1*/
-extern void printf(const char *, ...)
-    __KPRINTFLIKE(1);
-#pragma	rarely_called(printf)
-
 extern void vzprintf(zoneid_t, const char *, __va_list)
     __KVPRINTFLIKE(2);
 #pragma rarely_called(vzprintf)
@@ -85,10 +78,6 @@ extern void zprintf(zoneid_t, const char *, ...)
     __KPRINTFLIKE(2);
 #pragma rarely_called(zprintf)
 
-extern void vprintf(const char *, __va_list)
-    __KVPRINTFLIKE(1);
-#pragma	rarely_called(vprintf)
-
 /*PRINTFLIKE1*/
 extern void uprintf(const char *, ...)
     __KPRINTFLIKE(1);
@@ -97,17 +86,6 @@ extern void uprintf(const char *, ...)
 extern void vuprintf(const char *, __va_list)
     __KVPRINTFLIKE(1);
 #pragma rarely_called(vuprintf)
-
-/*PRINTFLIKE3*/
-extern size_t snprintf(char *, size_t, const char *, ...)
-    __KPRINTFLIKE(3);
-extern size_t vsnprintf(char *, size_t, const char *, __va_list)
-    __KVPRINTFLIKE(3);
-/*PRINTFLIKE2*/
-extern char *sprintf(char *, const char *, ...)
-    __KPRINTFLIKE(2);
-extern char *vsprintf(char *, const char *, __va_list)
-    __KVPRINTFLIKE(2);
 
 /*PRINTFLIKE1*/
 extern void panic(const char *, ...)

@@ -146,7 +146,7 @@ void dsl_pool_upgrade_dir_clones(dsl_pool_t *dp, dmu_tx_t *tx);
 void dsl_pool_mos_diduse_space(dsl_pool_t *dp,
     int64_t used, int64_t comp, int64_t uncomp);
 
-taskq_t *dsl_pool_vnrele_taskq(dsl_pool_t *dp);
+//taskq_t *dsl_pool_vnrele_taskq(dsl_pool_t *dp);
 
 extern int dsl_pool_user_hold(dsl_pool_t *dp, uint64_t dsobj,
     const char *tag, uint64_t *now, dmu_tx_t *tx);

@@ -30,11 +30,11 @@
 #define	_OPENSOLARIS_SYS_PROC_H_
 
 #include <sys/param.h>
-#include <sys/kthread.h>
-#include_next <sys/proc.h>
-#include <sys/stdint.h>
-#include <sys/smp.h>
-#include <sys/sched.h>
+//#include <sys/kthread.h>
+//#include_next <sys/proc.h>
+#include <stdint.h>
+//#include <sys/smp.h>
+//#include <sys/sched.h>
 #include <sys/lock.h>
 #include <sys/mutex.h>
 #include <sys/unistd.h>

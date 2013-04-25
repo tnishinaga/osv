@@ -89,7 +89,7 @@
 
 #include <sys/types.h>
 #include <sys/param.h>
-#include <sys/stdint.h>
+#include <stdint.h>
 #include <sys/debug.h>
 #include <sys/avl.h>
 
@@ -628,11 +628,7 @@ avl_add(avl_tree_t *tree, void *new_node)
 	 * do in userland is resort to a normal ASSERT().
 	 */
 	if (avl_find(tree, new_node, &where) != NULL)
-#ifdef _KERNEL
-		panic("avl_find() succeeded inside avl_add()");
-#else
 		ASSERT(0);
-#endif
 	avl_insert(tree, new_node, where);
 }
 

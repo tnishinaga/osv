@@ -85,6 +85,7 @@ typedef struct zfs_cmd_v15 {
 } zfs_cmd_v15_t;
 
 #ifdef _KERNEL
+#if 0
 unsigned static long zfs_ioctl_v15_to_v28[] = {
 	0,	/*  0 ZFS_IOC_POOL_CREATE */
 	1,	/*  1 ZFS_IOC_POOL_DESTROY */
@@ -141,6 +142,7 @@ unsigned static long zfs_ioctl_v15_to_v28[] = {
 	48,	/* 52 ZFS_IOC_USERSPACE_UPGRADE */
 	17,	/* 53 ZFS_IOC_SETFRU */
 };
+#endif
 
 #else	/* KERNEL */
 unsigned static long zfs_ioctl_v28_to_v15[] = {

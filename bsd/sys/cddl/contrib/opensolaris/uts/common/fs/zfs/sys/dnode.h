@@ -31,9 +31,9 @@
 #include <sys/spa.h>
 #include <sys/txg.h>
 #include <sys/zio.h>
-#include <sys/refcount.h>
 #include <sys/dmu_zfetch.h>
 #include <sys/zrlock.h>
+#include <sys/refcount.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -200,7 +200,7 @@ typedef struct dnode {
 	uint64_t dn_allocated_txg;
 	uint64_t dn_free_txg;
 	uint64_t dn_assigned_txg;
-	kcondvar_t dn_notxholds;
+//	kcondvar_t dn_notxholds;
 	enum dnode_dirtycontext dn_dirtyctx;
 	uint8_t *dn_dirtyctx_firstset;		/* dbg: contents meaningless */
 

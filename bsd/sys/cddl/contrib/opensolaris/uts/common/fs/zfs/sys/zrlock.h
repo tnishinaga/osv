@@ -34,7 +34,7 @@ extern "C" {
 typedef struct zrlock {
 	kmutex_t zr_mtx;
 	volatile int32_t zr_refcount;
-	kcondvar_t zr_cv;
+//	kcondvar_t zr_cv;
 	uint16_t zr_pad;
 #ifdef	ZFS_DEBUG
 	kthread_t *zr_owner;

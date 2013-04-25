@@ -35,7 +35,7 @@ extern "C" {
 
 struct tx_cpu {
 	kmutex_t	tc_lock;
-	kcondvar_t	tc_cv[TXG_SIZE];
+//	kcondvar_t	tc_cv[TXG_SIZE];
 	uint64_t	tc_count[TXG_SIZE];
 	list_t		tc_callbacks[TXG_SIZE]; /* commit cb list */
 	char		tc_pad[16];
@@ -52,20 +52,20 @@ typedef struct tx_state {
 	uint64_t	tx_sync_txg_waiting; /* txg we're waiting to sync */
 	uint64_t	tx_quiesce_txg_waiting; /* txg we're waiting to open */
 
-	kcondvar_t	tx_sync_more_cv;
-	kcondvar_t	tx_sync_done_cv;
-	kcondvar_t	tx_quiesce_more_cv;
-	kcondvar_t	tx_quiesce_done_cv;
-	kcondvar_t	tx_timeout_cv;
-	kcondvar_t	tx_exit_cv;	/* wait for all threads to exit */
+//	kcondvar_t	tx_sync_more_cv;
+//	kcondvar_t	tx_sync_done_cv;
+//	kcondvar_t	tx_quiesce_more_cv;
+//	kcondvar_t	tx_quiesce_done_cv;
+//	kcondvar_t	tx_timeout_cv;
+//	kcondvar_t	tx_exit_cv;	/* wait for all threads to exit */
 
 	uint8_t		tx_threads;	/* number of threads */
 	uint8_t		tx_exiting;	/* set when we're exiting */
 
-	kthread_t	*tx_sync_thread;
-	kthread_t	*tx_quiesce_thread;
+//	kthread_t	*tx_sync_thread;
+//	kthread_t	*tx_quiesce_thread;
 
-	taskq_t		*tx_commit_cb_taskq; /* commit callback taskq */
+//	taskq_t		*tx_commit_cb_taskq; /* commit callback taskq */
 } tx_state_t;
 
 #ifdef	__cplusplus

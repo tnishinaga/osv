@@ -426,7 +426,7 @@ struct zio {
 	void		*io_executor;
 	void		*io_waiter;
 	kmutex_t	io_lock;
-	kcondvar_t	io_cv;
+//	kcondvar_t	io_cv;
 
 	/* FMA state */
 	zio_cksum_report_t *io_cksum_report;
@@ -434,7 +434,7 @@ struct zio {
 
 #ifdef _KERNEL
 	/* FreeBSD only. */
-	struct ostask	io_task;
+//	struct ostask	io_task;
 #endif
 };
 

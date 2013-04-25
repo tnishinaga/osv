@@ -47,6 +47,7 @@ typedef longlong_t	hrtime_t;
 #endif
 
 #ifdef _KERNEL
+#if 0
 static __inline hrtime_t
 gethrtime(void) {
 
@@ -77,6 +78,7 @@ ddi_get_lbolt(void)
 
 	return (ddi_get_lbolt64());
 }
+#endif
 
 #else
 

@@ -114,7 +114,7 @@ struct ddt_entry {
 	enum ddt_class	dde_class;
 	uint8_t		dde_loading;
 	uint8_t		dde_loaded;
-	kcondvar_t	dde_cv;
+//	kcondvar_t	dde_cv;
 	avl_node_t	dde_node;
 };
 

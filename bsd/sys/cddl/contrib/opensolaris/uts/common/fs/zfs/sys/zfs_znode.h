@@ -29,9 +29,9 @@
 #include <sys/list.h>
 #include <sys/dmu.h>
 #include <sys/sa.h>
-#include <sys/zfs_vfsops.h>
+//#include <sys/zfs_vfsops.h>
 #include <sys/rrwlock.h>
-#include <sys/zfs_sa.h>
+//#include <sys/zfs_sa.h>
 #include <sys/zfs_stat.h>
 #endif
 #include <sys/zfs_acl.h>
@@ -171,7 +171,7 @@ typedef struct zfs_dirlock {
 	uint32_t	dl_sharecnt;	/* 0 if exclusive, > 0 if shared */
 	uint8_t		dl_namelock;	/* 1 if z_name_lock is NOT held */
 	uint16_t	dl_namesize;	/* set if dl_name was allocated */
-	kcondvar_t	dl_cv;		/* wait for entry to be unlocked */
+//	kcondvar_t	dl_cv;		/* wait for entry to be unlocked */
 	struct znode	*dl_dzp;	/* directory znode */
 	struct zfs_dirlock *dl_next;	/* next in z_dirlocks list */
 } zfs_dirlock_t;
