@@ -76,7 +76,9 @@ void disable_pic()
 
 void premain()
 {
-    disable_pic();
+    if (!xen::enabled()) {
+        disable_pic();
+    }
     auto inittab = elf::get_init(elf_header);
     setup_tls(inittab);
     for (auto init = inittab.start; init < inittab.start + inittab.count; ++init) {
