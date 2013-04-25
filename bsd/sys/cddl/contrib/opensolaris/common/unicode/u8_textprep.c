@@ -44,7 +44,7 @@
 #include <sys/kmem.h>
 #include <sys/sunddi.h>
 #else
-#include <strings.h>
+#include <string.h>
 #endif	/* _KERNEL */
 #include <sys/byteorder.h>
 #include <sys/errno.h>

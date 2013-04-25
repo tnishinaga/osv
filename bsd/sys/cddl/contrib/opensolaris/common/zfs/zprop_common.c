@@ -31,7 +31,7 @@
 #include <sys/spa.h>
 #include <sys/zfs_acl.h>
 #include <sys/zfs_ioctl.h>
-#include <sys/zfs_znode.h>
+//#include <sys/zfs_znode.h>
 #include <sys/fs/zfs.h>
 
 #include "zfs_prop.h"

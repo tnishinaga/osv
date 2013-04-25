@@ -30,73 +30,75 @@
 extern "C" {
 #endif
 
+#include <bsd/porting/netport.h>
+
 #include <sys/param.h>
-#include <sys/stdint.h>
+#include <stdint.h>
 #include <sys/note.h>
-#include <sys/kernel.h>
+//#include <sys/kernel.h>
 #include <sys/debug.h>
-#include <sys/systm.h>
+//#include <sys/systm.h>
 #include <sys/proc.h>
 #include <sys/sysmacros.h>
 #include <sys/bitmap.h>
 #include <sys/cmn_err.h>
-#include <sys/kmem.h>
-#include <sys/taskq.h>
-#include <sys/taskqueue.h>
+//#include <sys/kmem.h>
+//#include <sys/taskq.h>
+//#include <sys/taskqueue.h>
 #include <sys/systm.h>
-#include <sys/conf.h>
+//#include <sys/conf.h>
 #include <sys/mutex.h>
 #include <sys/rwlock.h>
 #include <sys/kcondvar.h>
-#include <sys/random.h>
-#include <sys/byteorder.h>
-#include <sys/systm.h>
+//#include <sys/random.h>
+//#include <sys/byteorder.h>
+//#include <sys/systm.h>
 #include <sys/list.h>
 #include <sys/zfs_debug.h>
 #include <sys/sysevent.h>
-#include <sys/uio.h>
-#include <sys/dirent.h>
-#include <sys/time.h>
-#include <sys/uio.h>
-#include <sys/fcntl.h>
-#include <sys/limits.h>
-#include <sys/string.h>
-#include <sys/bio.h>
-#include <sys/buf.h>
-#include <sys/cred.h>
-#include <sys/sdt.h>
-#include <sys/file.h>
-#include <sys/vfs.h>
-#include <sys/sysctl.h>
-#include <sys/sbuf.h>
-#include <sys/priv.h>
-#include <sys/kdb.h>
-#include <sys/ktr.h>
-#include <sys/stack.h>
-#include <sys/lockf.h>
-#include <sys/pathname.h>
-#include <sys/policy.h>
-#include <sys/refstr.h>
-#include <sys/zone.h>
-#include <sys/eventhandler.h>
-#include <sys/extattr.h>
-#include <sys/misc.h>
-#include <sys/sig.h>
-#include <sys/osd.h>
-#include <sys/sysevent/dev.h>
+//#include <sys/uio.h>
+//#include <sys/dirent.h>
+//#include <sys/time.h>
+//#include <sys/uio.h>
+//#include <sys/fcntl.h>
+//#include <sys/limits.h>
+#include <string.h>
+//#include <sys/bio.h>
+//#include <sys/buf.h>
+//#include <sys/cred.h>
+//#include <sys/sdt.h>
+//#include <sys/file.h>
+//#include <sys/vfs.h>
+//#include <sys/sysctl.h>
+//#include <sys/sbuf.h>
+//#include <sys/priv.h>
+//#include <sys/kdb.h>
+//#include <sys/ktr.h>
+//#include <sys/stack.h>
+//#include <sys/lockf.h>
+//#include <sys/pathname.h>
+//#include <sys/policy.h>
+//#include <sys/refstr.h>
+//#include <sys/zone.h>
+//#include <sys/eventhandler.h>
+//#include <sys/extattr.h>
+//#include <sys/misc.h>
+//#include <sys/sig.h>
+//#include <sys/osd.h>
+//#include <sys/sysevent/dev.h>
 #include <sys/sysevent/eventdefs.h>
 #include <sys/u8_textprep.h>
-#include <sys/fm/util.h>
+//#include <sys/fm/util.h>
 #include <sys/sunddi.h>
 
-#include <machine/stdarg.h>
+#include <stdarg.h>
 
-#include <vm/vm.h>
-#include <vm/vm_page.h>
-#include <vm/vm_object.h>
-#include <vm/vm_pager.h>
-#include <vm/vm_kern.h>
-#include <vm/vm_map.h>
+//#include <vm/vm.h>
+//#include <vm/vm_page.h>
+//#include <vm/vm_object.h>
+//#include <vm/vm_pager.h>
+//#include <vm/vm_kern.h>
+//#include <vm/vm_map.h>
 /* There is clash. vm_map.h defines the two below and vdev_cache.c use them. */
 #ifdef min_offset
 #undef min_offset
@@ -104,8 +106,8 @@ extern "C" {
 #ifdef max_offset
 #undef max_offset
 #endif
-#include <vm/vm_extern.h>
-#include <vm/vnode_pager.h>
+//#include <vm/vm_extern.h>
+//#include <vm/vnode_pager.h>
 
 #define	CPU_SEQID	(curcpu)
 

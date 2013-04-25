@@ -30,12 +30,14 @@
 #define	_OPENSOLARIS_SYS_KMEM_H_
 
 #include <sys/param.h>
+#include <bsd/porting/netport.h>
+#include <bsd/porting/uma_stub.h>
 #include <sys/proc.h>
-#include <sys/malloc.h>
+//#include <sys/malloc.h>
 
-#include <vm/uma.h>
-#include <vm/vm.h>
-#include <vm/vm_extern.h>
+//#include <vm/uma.h>
+//#include <vm/vm.h>
+//#include <vm/vm_extern.h>
 
 MALLOC_DECLARE(M_SOLARIS);
 
@@ -52,7 +54,7 @@ MALLOC_DECLARE(M_SOLARIS);
 
 typedef struct kmem_cache {
 	char		kc_name[32];
-#if defined(_KERNEL) && !defined(KMEM_DEBUG)
+#if 0 //defined(_KERNEL) && !defined(KMEM_DEBUG)
 	uma_zone_t	kc_zone;
 #else
 	size_t		kc_size;
@@ -70,7 +72,7 @@ uint64_t kmem_size(void);
 uint64_t kmem_used(void);
 kmem_cache_t *kmem_cache_create(char *name, size_t bufsize, size_t align,
     int (*constructor)(void *, void *, int), void (*destructor)(void *, void *),
-    void (*reclaim)(void *) __unused, void *private, vmem_t *vmp, int cflags);
+    void (*reclaim)(void *), void *private, vmem_t *vmp, int cflags);
 void kmem_cache_destroy(kmem_cache_t *cache);
 void *kmem_cache_alloc(kmem_cache_t *cache, int flags);
 void kmem_cache_free(kmem_cache_t *cache, void *buf);

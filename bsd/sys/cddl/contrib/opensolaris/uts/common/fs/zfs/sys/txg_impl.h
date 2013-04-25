@@ -65,7 +65,7 @@ typedef struct tx_state {
 	kthread_t	*tx_sync_thread;
 	kthread_t	*tx_quiesce_thread;
 
-	taskq_t		*tx_commit_cb_taskq; /* commit callback taskq */
+//	taskq_t		*tx_commit_cb_taskq; /* commit callback taskq */
 } tx_state_t;
 
 #ifdef	__cplusplus

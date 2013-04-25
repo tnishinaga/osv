@@ -30,7 +30,7 @@
 #include <sys/u8_textprep.h>
 #include <sys/zfs_acl.h>
 #include <sys/zfs_ioctl.h>
-#include <sys/zfs_znode.h>
+//#include <sys/zfs_znode.h>
 
 #include "zfs_prop.h"
 #include "zfs_deleg.h"

@@ -30,11 +30,10 @@
 #define	_OPENSOLARIS_SYS_PROC_H_
 
 #include <sys/param.h>
-#include <sys/kthread.h>
-#include_next <sys/proc.h>
-#include <sys/stdint.h>
-#include <sys/smp.h>
-#include <sys/sched.h>
+//#include_next <sys/proc.h>
+#include <stdint.h>
+//#include <sys/smp.h>
+//#include <sys/sched.h>
 #include <sys/lock.h>
 #include <sys/mutex.h>
 #include <sys/unistd.h>
@@ -54,6 +53,10 @@
 
 #define	t_tid	td_tid
 
+// XXX: map to OSv native threads somehow
+struct thread {
+};
+
 typedef	short		pri_t;
 typedef	struct thread	_kthread;
 typedef	struct thread	kthread_t;
@@ -62,6 +65,7 @@ typedef struct proc	proc_t;
 
 extern struct proc *zfsproc;
 
+#if 0
 static __inline kthread_t *
 thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
     size_t len, proc_t *pp, int state, pri_t pri)
@@ -87,6 +91,7 @@ thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
 	}
 	return (td);
 }
+#endif
 
 #define	thread_exit()	kthread_exit()
 
