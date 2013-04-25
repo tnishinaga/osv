@@ -22,7 +22,7 @@ using namespace mmu;
 
 namespace xen {
 
-bool is_enabled;
+bool is_enabled __attribute__((section(".data"))); // avoid overwrite by .bss clearing
 unsigned __thread vcpu_id;
 
 // we only have asm constraints for the first three hypercall args,
@@ -173,16 +173,11 @@ void setup_free_memory()
     memory::free_initial_memory_range(free_mem_start, free_mem);
 }
 
-__attribute__((constructor(101)))
-void setup()
-{
-    is_enabled = true;
-}
-
 }
 
 extern "C"
 void xen_init(struct start_info* si)
 {
     xen_start_info = si;
+    xen::is_enabled = true;
 }
