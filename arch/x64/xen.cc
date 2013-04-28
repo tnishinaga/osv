@@ -173,6 +173,21 @@ void setup_free_memory()
     memory::free_initial_memory_range(free_mem_start, free_mem);
 }
 
+void set_trap_table(idt_entry* idt)
+{
+    set::vector<trap_info> trap_table;
+
+    for (unsigned i = 0; i < 32; ++i) {
+        auto e = idt[i];
+        trap_info t;
+        t.vector = i;
+        t.flags = 1; // privileged
+        t.cs = e.selector;
+        t.addr = e.offset0 | (u64(e.offset1) << 16)) | (u64(e.offset2) << 32));
+
+    }
+}
+
 }
 
 extern "C"

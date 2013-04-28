@@ -31,6 +31,20 @@ struct exception_frame {
 
 extern __thread exception_frame* current_interrupt_frame;
 
+struct idt_entry {
+    u16 offset0;
+    u16 selector;
+    u8 ist : 3;
+    u8 res0 : 5;
+    u8 type : 4;
+    u8 s : 1;
+    u8 dpl : 2;
+    u8 p : 1;
+    u16 offset1;
+    u32 offset2;
+    u32 res1;
+} __attribute__((aligned(16)));
+
 class interrupt_descriptor_table {
 public:
     interrupt_descriptor_table();
@@ -45,19 +59,6 @@ private:
     enum {
         s_special = 0,
     };
-    struct idt_entry {
-        u16 offset0;
-        u16 selector;
-        u8 ist : 3;
-        u8 res0 : 5;
-        u8 type : 4;
-        u8 s : 1;
-        u8 dpl : 2;
-        u8 p : 1;
-        u16 offset1;
-        u32 offset2;
-        u32 res1;
-    } __attribute__((aligned(16)));
     void add_entry(unsigned vec, void (*handler)());
     idt_entry _idt[256];
     std::function<void ()> _handlers[256];

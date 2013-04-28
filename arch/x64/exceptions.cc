@@ -6,6 +6,7 @@
 #include "sched.hh"
 #include "debug.hh"
 #include <libc/signal.hh>
+#include "xen.hh"
 
 typedef boost::format fmt;
 
@@ -82,6 +83,9 @@ void interrupt_descriptor_table::add_entry(unsigned vec, void (*handler)())
 void
 interrupt_descriptor_table::load_on_cpu()
 {
+    if (xen::enabled()) {
+        return xen::set_trap_table(_idt);
+    }
     processor::desc_ptr d(sizeof(_idt) - 1,
                                reinterpret_cast<ulong>(&_idt));
     processor::lidt(d);
