@@ -33,7 +33,7 @@
 #define	_SYS_FS_ZFS_H
 
 #include <sys/types.h>
-#include <sys/ioccom.h>
+//#include <sys/ioccom.h>
 #include <sys/time.h>
 
 #ifdef	__cplusplus
