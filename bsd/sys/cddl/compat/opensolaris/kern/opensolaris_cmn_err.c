@@ -27,6 +27,7 @@
 
 #include <sys/assfail.h>
 #include <sys/cmn_err.h>
+#include <stdio.h>
 
 void
 vcmn_err(int ce, const char *fmt, va_list adx)
