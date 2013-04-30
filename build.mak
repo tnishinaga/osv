@@ -216,6 +216,22 @@ solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfs_prop.o
 solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zpool_prop.o
 solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zprop_common.o
 solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/os/nvpair_alloc_system.o
+#/bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_acl.c
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_byteswap.o
+#./bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_ctldir.c
+#./bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_debug.c
+#./bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_dir.c
+#./bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_fm.c
+#./bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_fuid.c
+#./bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_ioctl.c
+#./bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_log.c
+#./bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_onexit.c
+#./bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_replay.c
+#./bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_rlock.c
+#./bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_sa.c
+#./bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_vfsops.c
+#./bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_vnops.c
+#./bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_znode.c
 
 $(solaris): CFLAGS+= \
 	-D_KERNEL \
