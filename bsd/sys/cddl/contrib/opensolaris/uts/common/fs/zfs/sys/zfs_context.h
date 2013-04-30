@@ -86,7 +86,7 @@ extern "C" {
 //#include <sys/sig.h>
 //#include <sys/osd.h>
 //#include <sys/sysevent/dev.h>
-//#include <sys/sysevent/eventdefs.h>
+#include <sys/sysevent/eventdefs.h>
 #include <sys/u8_textprep.h>
 //#include <sys/fm/util.h>
 #include <sys/sunddi.h>

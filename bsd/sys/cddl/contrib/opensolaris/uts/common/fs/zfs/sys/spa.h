@@ -535,12 +535,10 @@ extern boolean_t spa_refcount_zero(spa_t *spa);
 #define	SCL_STATE_ALL	(SCL_STATE | SCL_L2ARC | SCL_ZIO)
 
 /* Pool configuration locks */
-#if 0
 extern int spa_config_tryenter(spa_t *spa, int locks, void *tag, krw_t rw);
 extern void spa_config_enter(spa_t *spa, int locks, void *tag, krw_t rw);
 extern void spa_config_exit(spa_t *spa, int locks, void *tag);
 extern int spa_config_held(spa_t *spa, int locks, krw_t rw);
-#endif
 
 /* Pool vdev add/remove lock */
 extern uint64_t spa_vdev_enter(spa_t *spa);

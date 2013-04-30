@@ -257,17 +257,17 @@ solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/os/nvpair_alloc_system.o
 #solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/txg.o
 #solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/uberblock.o
 #solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/unique.o
-#solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/vdev.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/vdev.o
 #solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/vdev_cache.o
 #solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/vdev_disk.o
 #solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/vdev_file.o
 #solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/vdev_geom.o
-#solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/vdev_label.o
-#solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/vdev_mirror.o
-#solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/vdev_missing.o
-#solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/vdev_queue.o
-#solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/vdev_raidz.o
-#solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/vdev_root.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/vdev_label.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/vdev_mirror.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/vdev_missing.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/vdev_queue.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/vdev_raidz.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/vdev_root.o
 #solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zap.o
 #solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zap_leaf.o
 #solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zap_micro.o
@@ -301,6 +301,7 @@ $(solaris): CFLAGS+= \
 	-D_KERNEL \
 	-I$(src)/bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs \
 	-I$(src)/bsd/sys/cddl/contrib/opensolaris/uts/common \
+	-I$(src)/bsd/sys/cddl/contrib/opensolaris/common/zfs \
 	-I$(src)/bsd/sys/cddl/compat/opensolaris \
 	-I$(src)/bsd/sys
 

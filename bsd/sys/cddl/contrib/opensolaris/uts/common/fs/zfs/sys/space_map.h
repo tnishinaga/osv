@@ -48,7 +48,7 @@ typedef struct space_map {
 	uint8_t		sm_pad[3];	/* unused */
 	uint8_t		sm_loaded;	/* map loaded? */
 	uint8_t		sm_loading;	/* map loading? */
-	kcondvar_t	sm_load_cv;	/* map load completion */
+//	kcondvar_t	sm_load_cv;	/* map load completion */
 	space_map_ops_t	*sm_ops;	/* space map block picker ops vector */
 	avl_tree_t	*sm_pp_root;	/* picker-private AVL tree */
 	void		*sm_ppd;	/* picker-private data */

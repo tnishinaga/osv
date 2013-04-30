@@ -69,9 +69,9 @@ struct spa_aux_vdev {
 
 typedef struct spa_config_lock {
 	kmutex_t	scl_lock;
-	kthread_t	*scl_writer;
+//	kthread_t	*scl_writer;
 	int		scl_write_wanted;
-	kcondvar_t	scl_cv;
+//	kcondvar_t	scl_cv;
 	refcount_t	scl_count;
 } spa_config_lock_t;
 
@@ -125,7 +125,7 @@ struct spa {
 	uint8_t		spa_sync_on;		/* sync threads are running */
 	spa_load_state_t spa_load_state;	/* current load operation */
 	uint64_t	spa_import_flags;	/* import specific flags */
-	taskq_t		*spa_zio_taskq[ZIO_TYPES][ZIO_TASKQ_TYPES];
+//	taskq_t		*spa_zio_taskq[ZIO_TYPES][ZIO_TASKQ_TYPES];
 	dsl_pool_t	*spa_dsl_pool;
 	boolean_t	spa_is_initializing;	/* true while opening pool */
 	metaslab_class_t *spa_normal_class;	/* normal data class */
@@ -158,7 +158,7 @@ struct spa {
 	uint64_t	spa_last_io;		/* lbolt of last non-scan I/O */
 	kmutex_t	spa_scrub_lock;		/* resilver/scrub lock */
 	uint64_t	spa_scrub_inflight;	/* in-flight scrub I/Os */
-	kcondvar_t	spa_scrub_io_cv;	/* scrub I/O completion */
+//	kcondvar_t	spa_scrub_io_cv;	/* scrub I/O completion */
 	uint8_t		spa_scrub_active;	/* active or suspended? */
 	uint8_t		spa_scrub_type;		/* type of scrub we're doing */
 	uint8_t		spa_scrub_finished;	/* indicator to rotate logs */
@@ -167,9 +167,9 @@ struct spa {
 	uint64_t	spa_scan_pass_start;	/* start time per pass/reboot */
 	uint64_t	spa_scan_pass_exam;	/* examined bytes per pass */
 	kmutex_t	spa_async_lock;		/* protect async state */
-	kthread_t	*spa_async_thread;	/* thread doing async task */
+//	kthread_t	*spa_async_thread;	/* thread doing async task */
 	int		spa_async_suspended;	/* async tasks suspended */
-	kcondvar_t	spa_async_cv;		/* wait for thread_exit() */
+//	kcondvar_t	spa_async_cv;		/* wait for thread_exit() */
 	uint16_t	spa_async_tasks;	/* async task mask */
 	char		*spa_root;		/* alternate root directory */
 	uint64_t	spa_ena;		/* spa-wide ereport ENA */
@@ -200,7 +200,7 @@ struct spa {
 	zio_t		*spa_async_zio_root;	/* root of all async I/O */
 	zio_t		*spa_suspend_zio_root;	/* root of all suspended I/O */
 	kmutex_t	spa_suspend_lock;	/* protects suspend_zio_root */
-	kcondvar_t	spa_suspend_cv;		/* notification of resume */
+//	kcondvar_t	spa_suspend_cv;		/* notification of resume */
 	uint8_t		spa_suspended;		/* pool is suspended */
 	uint8_t		spa_claiming;		/* pool is doing zil_claim() */
 	boolean_t	spa_debug;		/* debug enabled? */
@@ -216,7 +216,7 @@ struct spa {
 	uint64_t	spa_dspace;		/* dspace in normal class */
 	kmutex_t	spa_vdev_top_lock;	/* dueling offline/remove */
 	kmutex_t	spa_proc_lock;		/* protects spa_proc* */
-	kcondvar_t	spa_proc_cv;		/* spa_proc_state transitions */
+//	kcondvar_t	spa_proc_cv;		/* spa_proc_state transitions */
 	spa_proc_state_t spa_proc_state;	/* see definition */
 	struct proc	*spa_proc;		/* "zpool-poolname" process */
 	uint64_t	spa_did;		/* if procp != p0, did of t1 */

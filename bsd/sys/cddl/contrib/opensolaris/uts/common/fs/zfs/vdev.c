@@ -1056,6 +1056,7 @@ vdev_probe(vdev_t *vd, zio_t *zio)
 	return (NULL);
 }
 
+#if 0
 static void
 vdev_open_child(void *arg)
 {
@@ -1065,6 +1066,7 @@ vdev_open_child(void *arg)
 	vd->vdev_open_error = vdev_open(vd);
 	vd->vdev_open_thread = NULL;
 }
+#endif
 
 boolean_t
 vdev_uses_zvols(vdev_t *vd)
@@ -1081,7 +1083,7 @@ vdev_uses_zvols(vdev_t *vd)
 void
 vdev_open_children(vdev_t *vd)
 {
-	taskq_t *tq;
+//	taskq_t *tq;
 	int children = vd->vdev_children;
 
 	/*
@@ -1095,6 +1097,7 @@ vdev_open_children(vdev_t *vd)
 			    vdev_open(vd->vdev_child[c]);
 		return;
 	}
+#if 0
 	tq = taskq_create("vdev_open", children, minclsyspri,
 	    children, children, TASKQ_PREPOPULATE);
 
@@ -1103,6 +1106,7 @@ vdev_open_children(vdev_t *vd)
 		    TQ_SLEEP) != 0);
 
 	taskq_destroy(tq);
+#endif
 }
 
 /*
@@ -1118,8 +1122,8 @@ vdev_open(vdev_t *vd)
 	uint64_t asize, max_asize, psize;
 	uint64_t ashift = 0;
 
-	ASSERT(vd->vdev_open_thread == curthread ||
-	    spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
+//	ASSERT(vd->vdev_open_thread == curthread ||
+//	    spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
 	ASSERT(vd->vdev_state == VDEV_STATE_CLOSED ||
 	    vd->vdev_state == VDEV_STATE_CANT_OPEN ||
 	    vd->vdev_state == VDEV_STATE_OFFLINE);
@@ -1423,7 +1427,7 @@ vdev_validate(vdev_t *vd, boolean_t strict)
 void
 vdev_close(vdev_t *vd)
 {
-	spa_t *spa = vd->vdev_spa;
+//	spa_t *spa = vd->vdev_spa;
 	vdev_t *pvd = vd->vdev_parent;
 
 	ASSERT(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
@@ -1472,7 +1476,7 @@ vdev_hold(vdev_t *vd)
 void
 vdev_rele(vdev_t *vd)
 {
-	spa_t *spa = vd->vdev_spa;
+//	spa_t *spa = vd->vdev_spa;
 
 	ASSERT(spa_is_root(spa));
 	for (int c = 0; c < vd->vdev_children; c++)
@@ -1807,6 +1811,7 @@ vdev_dtl_sync(vdev_t *vd, uint64_t txg)
 		if (smo->smo_object != 0) {
 			int err = dmu_object_free(mos, smo->smo_object, tx);
 			ASSERT0(err);
+			(void)err;
 			smo->smo_object = 0;
 		}
 		dmu_tx_commit(tx);
@@ -3091,7 +3096,7 @@ vdev_is_bootable(vdev_t *vd)
 void
 vdev_load_log_state(vdev_t *nvd, vdev_t *ovd)
 {
-	spa_t *spa = nvd->vdev_spa;
+//	spa_t *spa = nvd->vdev_spa;
 
 	ASSERT(nvd->vdev_top->vdev_islog);
 	ASSERT(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
