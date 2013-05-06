@@ -11,7 +11,7 @@
 int getnameinfo(const struct sockaddr *restrict sa, socklen_t sl,
 	char *restrict node, socklen_t nodelen,
 	char *restrict serv, socklen_t servlen,
-	int flags)
+	unsigned int flags)
 {
 	char buf[256];
 	unsigned char reply[512];
