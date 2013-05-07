@@ -234,6 +234,7 @@ solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfs_namecheck.o
 solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfs_prop.o
 solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zpool_prop.o
 solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zprop_common.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/os/list.o
 solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/os/nvpair_alloc_system.o
 #solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/arc.o
 solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/bplist.o
