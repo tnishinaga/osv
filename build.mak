@@ -136,8 +136,11 @@ loader.bin: arch/x64/boot32.o arch/x64/loader32.ld
 
 arch/x64/boot32.o: loader.elf
 
+bsd/sys/crypto/sha2/sha2.o: CFLAGS+=-Wno-strict-aliasing
+
 bsd  = bsd/net.o  
 bsd += bsd/machine/in_cksum.o
+bsd += bsd/sys/crypto/sha2/sha2.o
 bsd += bsd/sys/libkern/arc4random.o
 bsd += bsd/sys/libkern/random.o
 bsd += bsd/sys/libkern/inet_ntoa.o
@@ -231,6 +234,16 @@ solaris += bsd/sys/cddl/contrib/opensolaris/common/nvpair/fnvpair.o
 solaris += bsd/sys/cddl/contrib/opensolaris/common/nvpair/nvpair.o
 solaris += bsd/sys/cddl/contrib/opensolaris/common/nvpair/nvpair_alloc_fixed.o
 solaris += bsd/sys/cddl/contrib/opensolaris/common/unicode/u8_textprep.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/zmod/adler32.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/zmod/deflate.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/zmod/inffast.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/zmod/inflate.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/zmod/inftrees.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/zmod/opensolaris_crc32.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/zmod/trees.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/zmod/zmod.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/zmod/zmod_subr.o
+solaris += bsd/sys/cddl/contrib/opensolaris/uts/common/zmod/zutil.o
 solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfeature_common.o
 solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfs_comutil.o
 solaris += bsd/sys/cddl/contrib/opensolaris/common/zfs/zfs_deleg.o
