@@ -956,6 +956,7 @@ dmu_objset_snapshot(char *fsname, char *snapname, char *tag,
 	if (err)
 		return (err);
 
+#if 0
 	if (temporary) {
 		if (cleanup_fd < 0) {
 			spa_close(spa, FTAG);
@@ -966,6 +967,7 @@ dmu_objset_snapshot(char *fsname, char *snapname, char *tag,
 			return (err);
 		}
 	}
+#endif
 
 	sn.dstg = dsl_sync_task_group_create(spa_get_dsl(spa));
 	sn.snapname = snapname;
@@ -993,8 +995,8 @@ dmu_objset_snapshot(char *fsname, char *snapname, char *tag,
 		dsl_dataset_t *ds = os->os_dsl_dataset;
 		if (dst->dst_err) {
 			dsl_dataset_name(ds, sn.failed);
-		} else if (temporary) {
-			dsl_register_onexit_hold_cleanup(sn.newds, tag, minor);
+//		} else if (temporary) {
+//			dsl_register_onexit_hold_cleanup(sn.newds, tag, minor);
 		}
 		if (sn.needsuspend)
 			zil_resume(dmu_objset_zil(os));
@@ -1015,8 +1017,8 @@ dmu_objset_snapshot(char *fsname, char *snapname, char *tag,
 
 	if (err)
 		(void) strcpy(fsname, sn.failed);
-	if (temporary)
-		zfs_onexit_fd_rele(cleanup_fd);
+//	if (temporary)
+//		zfs_onexit_fd_rele(cleanup_fd);
 	dsl_sync_task_group_destroy(sn.dstg);
 	spa_close(spa, FTAG);
 	return (err);

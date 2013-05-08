@@ -3831,8 +3831,10 @@ arc_init(void)
 	/* Convert seconds to clock ticks */
 	arc_min_prefetch_lifespan = 1 * hz;
 
-	/* Start out with 1/8 of all memory */
-	arc_c = kmem_size() / 8;
+	arc_c = 32 * 1024 * 1024;
+
+//	/* Start out with 1/8 of all memory */
+//	arc_c = kmem_size() / 8;
 
 #ifdef sun
 #if 0 // def _KERNEL

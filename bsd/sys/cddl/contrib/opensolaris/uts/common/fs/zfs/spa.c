@@ -2316,7 +2316,8 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 			    ZPOOL_CONFIG_HOSTNAME, &hostname) == 0);
 
 #ifdef	_KERNEL
-			myhostid = zone_get_hostid(NULL);
+//			myhostid = zone_get_hostid(NULL);
+			myhostid = 0;
 #else	/* _KERNEL */
 			/*
 			 * We're emulating the system's hostid in userland, so
@@ -3739,25 +3740,27 @@ out:
 
 #else
 
-extern int vdev_geom_read_pool_label(const char *name, nvlist_t ***configs,
-    uint64_t *count);
+//extern int vdev_geom_read_pool_label(const char *name, nvlist_t ***configs,
+//    uint64_t *count);
 
 static nvlist_t *
 spa_generate_rootconf(const char *name)
 {
+#if 0
 	nvlist_t **configs, **tops;
-	nvlist_t *config;
-	nvlist_t *best_cfg, *nvtop, *nvroot;
+	nvlist_t *config = NULL;
+//	nvlist_t *best_cfg;
+	nvlist_t *nvtop, *nvroot;
 	uint64_t *holes;
 	uint64_t best_txg;
 	uint64_t nchildren;
 	uint64_t pgid;
-	uint64_t count;
+	uint64_t count = 0;
 	uint64_t i;
 	uint_t   nholes;
 
-	if (vdev_geom_read_pool_label(name, &configs, &count) != 0)
-		return (NULL);
+//	if (vdev_geom_read_pool_label(name, &configs, &count) != 0)
+//		return (NULL);
 
 	ASSERT3U(count, !=, 0);
 	best_txg = 0;
@@ -3849,12 +3852,15 @@ spa_generate_rootconf(const char *name)
 
 	for (i = 0; i < count; i++)
 		nvlist_free(configs[i]);
-	kmem_free(configs, count * sizeof(void *));
+//	kmem_free(configs, count * sizeof(void *));
 	for (i = 0; i < nchildren; i++)
 		nvlist_free(tops[i]);
 	kmem_free(tops, nchildren * sizeof(void *));
 	nvlist_free(nvroot);
 	return (config);
+#else
+	return NULL;
+#endif
 }
 
 int

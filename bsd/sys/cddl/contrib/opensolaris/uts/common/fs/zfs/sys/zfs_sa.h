@@ -30,7 +30,8 @@
 #include <sys/list.h>
 #include <sys/dmu.h>
 #include <sys/zfs_acl.h>
-#include <sys/zfs_znode.h>
+#include <sys/acl.h>
+//#include <sys/zfs_znode.h>
 #include <sys/sa.h>
 #include <sys/zil.h>
 
@@ -124,7 +125,7 @@ typedef struct znode_phys {
 	 */
 } znode_phys_t;
 
-#ifdef _KERNEL
+#if 0 //def _KERNEL
 int zfs_sa_readlink(struct znode *, uio_t *);
 void zfs_sa_symlink(struct znode *, char *link, int len, dmu_tx_t *);
 void zfs_sa_upgrade(struct sa_handle  *, dmu_tx_t *);

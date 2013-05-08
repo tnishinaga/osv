@@ -1435,7 +1435,7 @@ sa_lookup(sa_handle_t *hdl, sa_attr_type_t attr, void *buf, uint32_t buflen)
 	return (error);
 }
 
-#ifdef _KERNEL
+#if 0 //def _KERNEL
 int
 sa_lookup_uio(sa_handle_t *hdl, sa_attr_type_t attr, uio_t *uio)
 {

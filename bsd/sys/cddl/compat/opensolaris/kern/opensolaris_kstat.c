@@ -56,6 +56,7 @@ kstat_create(char *module, int instance, char *name, char *class, uchar_t type,
 	ksp = malloc(sizeof(*ksp));
 	ksp->ks_ndata = ndata;
 
+#if 0
 	/*
 	 * Create sysctl tree for those statistics:
 	 *
@@ -90,10 +91,12 @@ kstat_create(char *module, int instance, char *name, char *class, uchar_t type,
 		return (NULL);
 	}
 	ksp->ks_sysctl_root = root;
+#endif
 
 	return (ksp);
 }
 
+#if 0
 static int
 kstat_sysctl(SYSCTL_HANDLER_ARGS)
 {
@@ -103,10 +106,12 @@ kstat_sysctl(SYSCTL_HANDLER_ARGS)
 	val = ksent->value.ui64;
 	return sysctl_handle_64(oidp, &val, 0, req);
 }
+#endif
 
 void
 kstat_install(kstat_t *ksp)
 {
+#if 0
 	kstat_named_t *ksent;
 	u_int i;
 
@@ -117,12 +122,14 @@ kstat_install(kstat_t *ksp)
 		    CTLTYPE_U64 | CTLFLAG_RD, ksent, sizeof(*ksent),
 		    kstat_sysctl, "QU", "");
 	}
+#endif
 }
 
 void
 kstat_delete(kstat_t *ksp)
 {
-
+#if 0
 	sysctl_ctx_free(&ksp->ks_sysctl_ctx);
+#endif
 	free(ksp);
 }
