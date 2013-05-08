@@ -35,7 +35,7 @@
 typedef struct ucred cred_t;
 typedef struct ucred ucred_t;
 
-#ifdef _KERNEL
+#if 0 // def _KERNEL
 #define	CRED()		(curthread->td_ucred)
 
 /*

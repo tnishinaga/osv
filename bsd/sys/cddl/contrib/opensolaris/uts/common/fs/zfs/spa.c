@@ -363,7 +363,7 @@ spa_prop_get(spa_t *spa, nvlist_t **nvp)
 	}
 	zap_cursor_fini(&zc);
 	mutex_exit(&spa->spa_props_lock);
-out:
+
 	if (err && err != ENOENT) {
 		nvlist_free(*nvp);
 		*nvp = NULL;
@@ -723,7 +723,7 @@ spa_change_guid_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 	vdev_config_dirty(rvd);
 	spa_config_exit(spa, SCL_STATE, FTAG);
 
-#ifdef __FreeBSD__
+#if 1 //def __FreeBSD__
 	/*
 	 * TODO: until recent illumos logging changes are merged
 	 *       log reguid as pool property change
@@ -998,9 +998,9 @@ spa_activate(spa_t *spa, int mode)
 
 	/* If we didn't create a process, we need to create our taskqs. */
 	ASSERT(spa->spa_proc == &p0);
-	if (spa->spa_proc == &p0) {
+//	if (spa->spa_proc == &p0) {
 		spa_create_zio_taskqs(spa);
-	}
+//	}
 
 	list_create(&spa->spa_config_dirty_list, sizeof (vdev_t),
 	    offsetof(vdev_t, vdev_config_dirty_node));
@@ -2771,10 +2771,10 @@ spa_open_common(const char *pool, spa_t **spapp, void *tag, nvlist_t *nvpolicy,
 	 * up calling spa_open() again.  The real fix is to figure out how to
 	 * avoid dsl_dir_open() calling this in the first place.
 	 */
-	if (mutex_owner(&spa_namespace_lock) != curthread) {
+//	if (mutex_owner(&spa_namespace_lock) != curthread) {
 		mutex_enter(&spa_namespace_lock);
-		locked = B_TRUE;
-	}
+//		locked = B_TRUE;
+//	}
 
 	if ((spa = spa_lookup(pool)) == NULL) {
 		if (locked)
@@ -5658,6 +5658,7 @@ spa_scan(spa_t *spa, pool_scan_func_t func)
  * ==========================================================================
  */
 
+#if 0
 static void
 spa_async_remove(spa_t *spa, vdev_t *vd)
 {
@@ -5717,7 +5718,7 @@ spa_async_autoexpand(spa_t *spa, vdev_t *vd)
 	(void) snprintf(physpath, MAXPATHLEN, "/devices%s", vd->vdev_physpath);
 
 	VERIFY(nvlist_alloc(&attr, NV_UNIQUE_NAME, KM_SLEEP) == 0);
-	VERIFY(nvlist_add_string(attr, DEV_PHYS_PATH, physpath) == 0);
+//	VERIFY(nvlist_add_string(attr, DEV_PHYS_PATH, physpath) == 0);
 
 	(void) ddi_log_sysevent(zfs_dip, SUNW_VENDOR, EC_DEV_STATUS,
 	    ESC_ZFS_VDEV_AUTOEXPAND, attr, &eid, DDI_SLEEP);
@@ -5775,7 +5776,6 @@ spa_async_thread(void *arg)
 			spa_async_remove(spa, spa->spa_spares.sav_vdevs[i]);
 		(void) spa_vdev_state_exit(spa, NULL, 0);
 	}
-
 	if ((tasks & SPA_ASYNC_AUTOEXPAND) && !spa_suspended(spa)) {
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 		spa_async_autoexpand(spa, spa->spa_root_vdev);
@@ -5812,6 +5812,7 @@ spa_async_thread(void *arg)
 	mutex_exit(&spa->spa_async_lock);
 	thread_exit();
 }
+#endif
 
 void
 spa_async_suspend(spa_t *spa)
@@ -5832,6 +5833,7 @@ spa_async_resume(spa_t *spa)
 	mutex_exit(&spa->spa_async_lock);
 }
 
+#if 0
 static void
 spa_async_dispatch(spa_t *spa)
 {
@@ -5843,6 +5845,7 @@ spa_async_dispatch(spa_t *spa)
 		    spa_async_thread, spa, 0, &p0, TS_RUN, maxclsyspri);
 	mutex_exit(&spa->spa_async_lock);
 }
+#endif
 
 void
 spa_async_request(spa_t *spa, int task)
@@ -6414,7 +6417,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 	/*
 	 * If any async tasks have been requested, kick them off.
 	 */
-	spa_async_dispatch(spa);
+//	spa_async_dispatch(spa);
 }
 
 /*

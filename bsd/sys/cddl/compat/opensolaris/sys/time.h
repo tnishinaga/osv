@@ -72,6 +72,17 @@ static __inline hrtime_t gethrtime(void) {
 	return (((u_int64_t) ts.tv_sec) * NANOSEC + ts.tv_nsec);
 }
 
+static __inline uint64_t gethrestime_sec(void) {
+	struct timespec ts;
+	clock_gettime(CLOCK_UPTIME,&ts);
+	return ((u_int64_t) ts.tv_sec);
+}
+
+#define	gethrestime(ts)		 clock_gettime(CLOCK_REALTIME, ts)
+
+
+#define	gethrestime(ts)		 clock_gettime(CLOCK_REALTIME, ts)
+
 #endif	/* _KERNEL */
 
 extern int nsec_per_tick;	/* nanoseconds per clock tick */

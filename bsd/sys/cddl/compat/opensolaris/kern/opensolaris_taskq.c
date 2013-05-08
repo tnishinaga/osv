@@ -25,10 +25,10 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+//__FBSDID("$FreeBSD$");
 
 #include <sys/param.h>
-#include <sys/kernel.h>
+//#include <sys/kernel.h>
 #include <sys/kmem.h>
 #include <sys/lock.h>
 #include <sys/mutex.h>
@@ -36,12 +36,13 @@ __FBSDID("$FreeBSD$");
 #include <sys/taskqueue.h>
 #include <sys/taskq.h>
 
-#include <vm/uma.h>
+//#include <vm/uma.h>
 
 static uma_zone_t taskq_zone;
 
 taskq_t *system_taskq = NULL;
 
+#if 0
 static void
 system_taskq_init(void *arg)
 {
@@ -60,10 +61,11 @@ system_taskq_fini(void *arg)
 	uma_zdestroy(taskq_zone);
 }
 SYSUNINIT(system_taskq_fini, SI_SUB_CONFIGURE, SI_ORDER_ANY, system_taskq_fini, NULL);
+#endif
 
 taskq_t *
-taskq_create(const char *name, int nthreads, pri_t pri, int minalloc __unused,
-    int maxalloc __unused, uint_t flags)
+taskq_create(const char *name, int nthreads, pri_t pri, int minalloc __unused2,
+    int maxalloc __unused2, uint_t flags)
 {
 	taskq_t *tq;
 
@@ -80,7 +82,7 @@ taskq_create(const char *name, int nthreads, pri_t pri, int minalloc __unused,
 
 taskq_t *
 taskq_create_proc(const char *name, int nthreads, pri_t pri, int minalloc,
-    int maxalloc, proc_t *proc __unused, uint_t flags)
+    int maxalloc, proc_t *proc __unused2, uint_t flags)
 {
 
 	return (taskq_create(name, nthreads, pri, minalloc, maxalloc, flags));
@@ -102,7 +104,7 @@ taskq_member(taskq_t *tq, kthread_t *thread)
 }
 
 static void
-taskq_run(void *arg, int pending __unused)
+taskq_run(void *arg, int pending __unused2)
 {
 	struct ostask *task = arg;
 
@@ -143,7 +145,7 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 #define	TASKQ_MAGIC	0x74541c
 
 static void
-taskq_run_safe(void *arg, int pending __unused)
+taskq_run_safe(void *arg, int pending __unused2)
 {
 	struct ostask *task = arg;
 

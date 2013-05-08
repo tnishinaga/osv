@@ -137,7 +137,7 @@ txg_sync_start(dsl_pool_t *dp)
 	tx->tx_threads = 2;
 
 	tx->tx_quiesce_thread = thread_create(NULL, 0, txg_quiesce_thread,
-	    dp, 0, &p0, TS_RUN, minclsyspri);
+	    dp, 0, NULL, TS_RUN, minclsyspri);
 
 	/*
 	 * The sync thread can need a larger-than-default stack size on
@@ -145,7 +145,7 @@ txg_sync_start(dsl_pool_t *dp)
 	 * scrub_visitbp() recursion.
 	 */
 	tx->tx_sync_thread = thread_create(NULL, 32<<10, txg_sync_thread,
-	    dp, 0, &p0, TS_RUN, minclsyspri);
+	    dp, 0, NULL, TS_RUN, minclsyspri);
 
 	mutex_exit(&tx->tx_sync_lock);
 }
@@ -487,10 +487,10 @@ txg_quiesce_thread(void *arg)
  * the delay if this txg stalls or enters the quiesing state.
  */
 void
-txg_delay(dsl_pool_t *dp, uint64_t txg, int ticks)
+txg_delay(dsl_pool_t *dp, uint64_t txg, int nticks)
 {
 	tx_state_t *tx = &dp->dp_tx;
-	clock_t timeout = ddi_get_lbolt() + ticks;
+	clock_t timeout = ddi_get_lbolt() + nticks;
 
 	/* don't delay if this txg could transition to quiesing immediately */
 	if (tx->tx_open_txg > txg ||

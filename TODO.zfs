@@ -2,3 +2,13 @@
  - find real backing information for max_ncpus
  - make the curthread macro do something useful
  - make SYSINIT do the right thing
+ - make delay() do something
+ - spa_proc issues
+ - spa_async_ mess
+ - sort out various timing functions in <sys/time.h>
+ - spa_config real implementation
+ - make fm_ena_generate do something useful
+ - useful curcpu
+ - port tsleep() for callb
+ - arc.c _KERNEL stuff (reclaim & co)
+ - dsl_deleg.c permissions

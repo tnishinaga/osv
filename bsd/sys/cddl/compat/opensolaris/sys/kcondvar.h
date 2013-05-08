@@ -43,5 +43,6 @@ typedef enum {
 #define cv_signal(cv)			condvar_wake_one(cv)
 #define cv_broadcast(cv)		condvar_wake_all(cv)
 #define cv_wait(cv, mutex)		condvar_wait(cv, mutex, 0)
+#define cv_timedwait(cv, mutex, tmo)	condvar_wait(cv, mutex, tmo)
 
 #endif	/* _OPENSOLARIS_SYS_CONDVAR_H_ */

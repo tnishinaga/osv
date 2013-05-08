@@ -178,7 +178,7 @@ spa_history_write(spa_t *spa, void *buf, uint64_t len, spa_history_phys_t *shpp,
 static char *
 spa_history_zone()
 {
-#ifdef _KERNEL
+#if 0 //def _KERNEL
 	/* XXX: pr_hostname can be changed by default from within a jail! */
 	if (jailed(curthread->td_ucred))
 		return (curthread->td_ucred->cr_prison->pr_hostname);
@@ -238,7 +238,7 @@ spa_history_log_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 	if (hap->ha_zone != NULL)
 		VERIFY(nvlist_add_string(nvrecord, ZPOOL_HIST_ZONE,
 		    hap->ha_zone) == 0);
-#ifdef _KERNEL
+#if 0 // def _KERNEL
 	VERIFY(nvlist_add_string(nvrecord, ZPOOL_HIST_HOST,
 	    utsname.nodename) == 0);
 #endif
@@ -320,7 +320,7 @@ spa_history_log(spa_t *spa, const char *history_str, history_log_type_t what)
 	ha->ha_history_str = strdup(history_str);
 	ha->ha_zone = strdup(spa_history_zone());
 	ha->ha_log_type = what;
-	ha->ha_uid = crgetuid(CRED());
+//	ha->ha_uid = crgetuid(CRED());
 
 	/* Kick this off asynchronously; errors are ignored. */
 	dsl_sync_task_do_nowait(spa_get_dsl(spa), NULL,
@@ -495,7 +495,7 @@ spa_history_log_internal(history_internal_events_t event, spa_t *spa,
 void
 spa_history_log_version(spa_t *spa, history_internal_events_t event)
 {
-#ifdef _KERNEL
+#if 0 //def _KERNEL
 	uint64_t current_vers = spa_version(spa);
 
 	if (current_vers >= SPA_VERSION_ZPOOL_HISTORY) {

@@ -43,7 +43,7 @@
 #include <sys/zfs_context.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/spa.h>
-#include <sys/zfs_znode.h>
+//#include <sys/zfs_znode.h>
 #include <sys/zfs_onexit.h>
 #include <sys/zvol.h>
 #include <sys/dsl_scan.h>
@@ -2699,7 +2699,6 @@ struct promotearg {
 };
 
 static int snaplist_space(list_t *l, uint64_t mintxg, uint64_t *spacep);
-static boolean_t snaplist_unstable(list_t *l);
 
 static int
 dsl_dataset_promote_check(void *arg1, void *arg2, dmu_tx_t *tx)

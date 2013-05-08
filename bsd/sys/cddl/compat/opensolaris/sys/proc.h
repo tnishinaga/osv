@@ -38,6 +38,7 @@
 #include <sys/mutex.h>
 #include <sys/unistd.h>
 #include <sys/debug.h>
+#include <sys/kthread.h>
 
 #ifdef _KERNEL
 
@@ -54,9 +55,9 @@
 #define	t_tid	td_tid
 
 typedef	short		pri_t;
-typedef	struct pthread	_kthread;
-typedef	struct pthread	kthread_t;
-typedef struct pthread	*kthread_id_t;
+typedef	struct thread	_kthread;
+typedef	struct thread	kthread_t;
+typedef struct thread	*kthread_id_t;
 typedef struct proc	proc_t;
 
 extern struct proc *zfsproc;
@@ -64,7 +65,6 @@ extern struct proc *zfsproc;
 // horrible hack for ZIO, will fail for code not abusing curthread as a boolean true
 #define curthread	((kthread_t *)1)
 
-#if 0
 static __inline kthread_t *
 thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
     size_t len, proc_t *pp, int state, pri_t pri)
@@ -78,19 +78,11 @@ thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
 	ASSERT(stk == NULL);
 	ASSERT(len == 0);
 	ASSERT(state == TS_RUN);
-	ASSERT(pp == &p0);
 
-	error = kproc_kthread_add(proc, arg, &zfsproc, &td, RFSTOPPED,
-	    stksize / PAGE_SIZE, "zfskern", "solthread %p", proc);
-	if (error == 0) {
-		thread_lock(td);
-		sched_prio(td, pri);
-		sched_add(td, SRQ_BORING);
-		thread_unlock(td);
-	}
+	error = kthread_add(proc, arg, NULL, &td, RFSTOPPED,
+	    0, "solthread %p", proc);
 	return (td);
 }
-#endif
 
 #define	thread_exit()	kthread_exit()
 

@@ -240,7 +240,7 @@ typedef struct dmu_xuio {
 	int next;
 	int cnt;
 	struct arc_buf **bufs;
-	iovec_t *iovp;
+	struct iovec *iovp;
 } dmu_xuio_t;
 
 typedef struct xuio_stats {

@@ -37,7 +37,7 @@
 #include <sys/zio.h>
 #include <sys/zfs_context.h>
 #include <sys/fs/zfs.h>
-#include <sys/zfs_znode.h>
+//#include <sys/zfs_znode.h>
 #include <sys/spa_impl.h>
 #include <sys/dsl_deadlist.h>
 #include <sys/bptree.h>
@@ -69,6 +69,7 @@ TUNABLE_INT("vfs.zfs.txg.synctime_ms", &zfs_txg_synctime_ms);
 SYSCTL_INT(_vfs_zfs_txg, OID_AUTO, synctime_ms, CTLFLAG_RDTUN,
     &zfs_txg_synctime_ms, 0, "Target milliseconds to sync a txg");
 
+#if 0
 TUNABLE_QUAD("vfs.zfs.write_limit_min", &zfs_write_limit_min);
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, write_limit_min, CTLFLAG_RDTUN,
     &zfs_write_limit_min, 0, "Minimum write limit");
@@ -81,6 +82,7 @@ SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, write_limit_inflated, CTLFLAG_RDTUN,
 TUNABLE_QUAD("vfs.zfs.write_limit_override", &zfs_write_limit_override);
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, write_limit_override, CTLFLAG_RDTUN,
     &zfs_write_limit_override, 0, "");
+#endif
 
 int
 dsl_pool_open_special_dir(dsl_pool_t *dp, const char *name, dsl_dir_t **ddp)
@@ -329,7 +331,7 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops, uint64_t txg)
 	VERIFY(0 == dsl_dataset_hold_obj(dp, obj, FTAG, &ds));
 	os = dmu_objset_create_impl(dp->dp_spa, ds,
 	    dsl_dataset_get_blkptr(ds), DMU_OST_ZFS, tx);
-#ifdef _KERNEL
+#if 0 //def _KERNEL
 	zfs_create_fs(os, kcred, zplprops, tx);
 #endif
 	dsl_dataset_rele(ds, FTAG);
@@ -512,6 +514,7 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	dp->dp_space_towrite[txg & TXG_MASK] = 0;
 	ASSERT(dp->dp_tempreserved[txg & TXG_MASK] == 0);
 
+#if 0
 	/*
 	 * If the write limit max has not been explicitly set, set it
 	 * to a fraction of available physical memory (default 1/8th).
@@ -527,6 +530,7 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 		    spa_get_asize(dp->dp_spa, zfs_write_limit_max));
 		mutex_exit(&zfs_write_limit_lock);
 	}
+#endif
 
 	/*
 	 * Attempt to keep the sync time consistent by adjusting the

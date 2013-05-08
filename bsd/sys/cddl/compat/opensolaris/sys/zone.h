@@ -33,6 +33,8 @@
 
 //#include <sys/jail.h>
 
+struct ucred;
+
 /*
  * Macros to help with zone visibility restrictions.
  */
@@ -40,7 +42,7 @@
 /*
  * Is thread in the global zone?
  */
-#define	INGLOBALZONE(thread)	(!jailed((thread)->td_ucred))
+#define	INGLOBALZONE(thread)	1
 
 /*
  * Attach the given dataset to the given jail.

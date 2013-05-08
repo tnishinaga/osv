@@ -13,6 +13,11 @@
 #define MOD_LOAD (1)
 #define MOD_UNLOAD (2)
 
+#define CACHE_LINE_SIZE	128	// random
+
+#define curcpu	1	// hack
+#define MAXCPU	64
+
 #define MAXCOMLEN       19 
 
 #define __offsetof(type, field)  __builtin_offsetof(type, field)
@@ -21,6 +26,14 @@
 	const volatile __typeof(((s *)0)->m) *__x = (x);                \
 	__DEQUALIFY(s *, (const volatile char *)__x - __offsetof(s, m));\
 })
+
+#define __dead2         __attribute__((__noreturn__))
+#define __pure2         __attribute__((__const__))
+#define __unused2       __attribute__((__unused__))
+#define __used          __attribute__((__used__))
+#define __packed        __attribute__((__packed__))
+#define __aligned(x)    __attribute__((__aligned__(x)))
+#define __section(x)    __attribute__((__section__(x)))
 
 #define __predict_false(x) (x)
 #define __predict_true(x) (x)

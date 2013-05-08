@@ -258,8 +258,8 @@ dbuf_init(void)
 	 * with an average 4K block size.  The table will take up
 	 * totalmem*sizeof(void*)/4K (i.e. 2MB/GB with 8-byte pointers).
 	 */
-	while (hsize * 4096 < (uint64_t)physmem * PAGESIZE)
-		hsize <<= 1;
+//	while (hsize * 4096 < (uint64_t)physmem * PAGESIZE)
+//		hsize <<= 1;
 
 retry:
 	h->hash_table_mask = hsize - 1;

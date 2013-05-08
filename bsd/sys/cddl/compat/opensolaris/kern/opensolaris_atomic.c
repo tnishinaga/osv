@@ -25,18 +25,20 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+//__FBSDID("$FreeBSD$");
 
 #include <sys/param.h>
 #include <sys/lock.h>
 #include <sys/mutex.h>
 #include <sys/atomic.h>
 
+#include <bsd/porting/sync_stub.h>
+
 #ifdef _KERNEL
-#include <sys/kernel.h>
+//#include <sys/kernel.h>
 
 struct mtx atomic_mtx;
-MTX_SYSINIT(atomic, &atomic_mtx, "atomic", MTX_DEF);
+//MTX_SYSINIT(atomic, &atomic_mtx, "atomic", MTX_DEF);
 #else
 #include <pthread.h>
 

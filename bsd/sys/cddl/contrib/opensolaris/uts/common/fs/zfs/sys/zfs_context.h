@@ -35,6 +35,7 @@ extern "C" {
 #include <sys/param.h>
 #include <stdint.h>
 #include <sys/note.h>
+#include <sys/priority.h>
 //#include <sys/kernel.h>
 #include <sys/debug.h>
 //#include <sys/systm.h>
@@ -50,7 +51,7 @@ extern "C" {
 #include <sys/mutex.h>
 #include <sys/rwlock.h>
 #include <sys/kcondvar.h>
-//#include <sys/random.h>
+#include <sys/random.h>
 #include <sys/byteorder.h>
 //#include <sys/systm.h>
 #include <sys/list.h>
@@ -58,15 +59,16 @@ extern "C" {
 #include <sys/sysevent.h>
 //#include <sys/uio.h>
 //#include <sys/dirent.h>
-//#include <sys/time.h>
+#include <sys/time.h>
 //#include <sys/uio.h>
-//#include <sys/fcntl.h>
+#include <osv/fcntl.h>
 //#include <sys/limits.h>
+#include <sys/string.h>
 #include <string.h>
 //#include <sys/bio.h>
 //#include <sys/buf.h>
 //#include <sys/cred.h>
-//#include <sys/sdt.h>
+#include <sys/sdt.h>
 //#include <sys/file.h>
 //#include <sys/vfs.h>
 //#include <sys/sysctl.h>
@@ -79,7 +81,7 @@ extern "C" {
 //#include <sys/pathname.h>
 //#include <sys/policy.h>
 //#include <sys/refstr.h>
-//#include <sys/zone.h>
+#include <sys/zone.h>
 //#include <sys/eventhandler.h>
 //#include <sys/extattr.h>
 //#include <sys/misc.h>
@@ -138,5 +140,8 @@ extern struct mtx zfs_debug_mtx;
 } while (0)
 
 #define	sys_shutdown	rebooting
+
+// from zfs_znode.h
+#define	ZFS_MAXNAMELEN	(MAXNAMELEN - 1)
 
 #endif	/* _SYS_ZFS_CONTEXT_H */

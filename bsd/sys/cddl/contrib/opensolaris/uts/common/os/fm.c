@@ -64,7 +64,8 @@
 #include <sys/kobj.h>
 #include <sys/kstat.h>
 #include <sys/processor.h>
-#include <sys/pcpu.h>
+#include <sys/atomic.h>
+//#include <sys/pcpu.h>
 #include <sys/sunddi.h>
 #include <sys/systeminfo.h>
 #include <sys/sysevent/eventdefs.h>
@@ -684,7 +685,7 @@ i_fm_payload_set(nvlist_t *payload, const char *name, va_list ap)
 			break;
 		case DATA_TYPE_BOOLEAN_VALUE:
 			ret = nvlist_add_boolean_value(payload, name,
-			    va_arg(ap, boolean_t));
+			    va_arg(ap, int));
 			break;
 		case DATA_TYPE_BOOLEAN_ARRAY:
 			nelem = va_arg(ap, int);
@@ -1162,6 +1163,7 @@ fm_ena_increment(uint64_t ena)
 	return (new_ena);
 }
 
+#if 0
 uint64_t
 fm_ena_generate_cpu(uint64_t timestamp, processorid_t cpuid, uchar_t format)
 {
@@ -1193,11 +1195,13 @@ fm_ena_generate_cpu(uint64_t timestamp, processorid_t cpuid, uchar_t format)
 
 	return (ena);
 }
+#endif
 
 uint64_t
 fm_ena_generate(uint64_t timestamp, uchar_t format)
 {
-	return (fm_ena_generate_cpu(timestamp, PCPU_GET(cpuid), format));
+//	return (fm_ena_generate_cpu(timestamp, PCPU_GET(cpuid), format));
+	return 0;
 }
 
 uint64_t

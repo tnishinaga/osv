@@ -909,8 +909,8 @@ dmu_objset_snapshot_one(const char *name, void *arg)
 	 * permission checks for the starting dataset have already been
 	 * performed in zfs_secpolicy_snapshot()
 	 */
-	if (sn->recursive && (err = zfs_secpolicy_snapshot_perms(name, CRED())))
-		return (err);
+//	if (sn->recursive && (err = zfs_secpolicy_snapshot_perms(name, CRED())))
+//		return (err);
 
 	err = dmu_objset_hold(name, sn, &os);
 	if (err != 0)
@@ -1457,8 +1457,8 @@ dmu_objset_userspace_upgrade(objset_t *os)
 		dmu_buf_t *db;
 		int objerr;
 
-		if (issig(JUSTLOOKING) && issig(FORREAL))
-			return (EINTR);
+//		if (issig(JUSTLOOKING) && issig(FORREAL))
+//			return (EINTR);
 
 		objerr = dmu_bonus_hold(os, obj, FTAG, &db);
 		if (objerr)

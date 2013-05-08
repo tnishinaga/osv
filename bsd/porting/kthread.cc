@@ -34,3 +34,9 @@ out_free_td:
 	free(td);
 	return error;
 }
+
+void
+kthread_exit(void)
+{
+	abort();
+}
