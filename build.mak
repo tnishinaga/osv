@@ -383,5 +383,3 @@ gen-ctype-data: gen-ctype-data.o
 -include $(shell find -name '*.d')
 
 .DELETE_ON_ERROR:
-
-.SECONDARY:
