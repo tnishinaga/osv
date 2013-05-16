@@ -40,7 +40,7 @@
 #include <sys/sunddi.h>
 #include <sys/zvol.h>
 #ifdef _KERNEL
-#include <sys/zfs_vfsops.h>
+//#include <sys/zfs_vfsops.h>
 #endif
 #include "zfs_namecheck.h"
 
@@ -1343,7 +1343,7 @@ dsl_dir_rename_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 	    dd->dd_myname, 8, 1, &dd->dd_object, tx);
 	ASSERT0(err);
 	dsl_dir_name(dd, newname);
-#ifdef _KERNEL
+#if 0 //def _KERNEL
 	zfsvfs_update_fromname(oldname, newname);
 	zvol_rename_minors(oldname, newname);
 #endif

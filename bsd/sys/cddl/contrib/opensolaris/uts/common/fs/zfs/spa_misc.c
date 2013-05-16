@@ -459,7 +459,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	spa->spa_freeze_txg = UINT64_MAX;
 	spa->spa_final_txg = UINT64_MAX;
 	spa->spa_load_max_txg = UINT64_MAX;
-	spa->spa_proc = &p0;
+//	spa->spa_proc = &p0;
 	spa->spa_proc_state = SPA_PROC_NONE;
 
 	refcount_create(&spa->spa_refcount);

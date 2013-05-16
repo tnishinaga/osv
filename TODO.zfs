@@ -1,2 +1,8 @@
 
+ - sort out the mp_ncpus and curcpu mess
  - sort out various timing functions in <sys/time.h>
+ - spa_proc issues
+ - spa_async_ mess
+ - spa_config real implementation
+ - arc.c _KERNEL stuff (reclaim & co)
+ - dsl_deleg.c permissions

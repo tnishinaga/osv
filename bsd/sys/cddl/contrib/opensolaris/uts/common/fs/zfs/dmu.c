@@ -423,7 +423,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 		/* initiate async i/o */
 		if (read)
 			(void) dbuf_read(db, zio, dbuf_flags);
-#ifdef _KERNEL
+#if 0 //def _KERNEL
 		else
 			curthread->td_ru.ru_oublock++;
 #endif
@@ -852,6 +852,7 @@ dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
 
+#if 0
 /*
  * DMU support for xuio
  */
@@ -1183,6 +1184,7 @@ dmu_write_pages(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	return (err);
 }
 #endif	/* sun */
+#endif
 #endif
 
 /*
@@ -1825,7 +1827,7 @@ dmu_init(void)
 {
 	zfs_dbgmsg_init();
 	sa_cache_init();
-	xuio_stat_init();
+//	xuio_stat_init();
 	dmu_objset_init();
 	dnode_init();
 	dbuf_init();
@@ -1843,7 +1845,7 @@ dmu_fini(void)
 	dbuf_fini();
 	dnode_fini();
 	dmu_objset_fini();
-	xuio_stat_fini();
+//	xuio_stat_fini();
 	sa_cache_fini();
 	zfs_dbgmsg_fini();
 }
