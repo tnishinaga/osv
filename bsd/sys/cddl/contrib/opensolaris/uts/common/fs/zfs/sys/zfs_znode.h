@@ -25,6 +25,7 @@
 #ifndef	_SYS_FS_ZFS_ZNODE_H
 #define	_SYS_FS_ZFS_ZNODE_H
 
+#if 0
 #ifdef _KERNEL
 #include <sys/list.h>
 #include <sys/dmu.h>
@@ -376,6 +377,7 @@ extern int zfs_obj_to_path(objset_t *osp, uint64_t obj, char *buf, int len);
 
 #ifdef	__cplusplus
 }
+#endif
 #endif
 
 #endif	/* _SYS_FS_ZFS_ZNODE_H */
