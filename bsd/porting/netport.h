@@ -10,6 +10,8 @@
 #include <time.h>
 #include <pthread.h>
 
+#define CACHE_LINE_SIZE		128 // random
+
 #define MOD_LOAD (1)
 #define MOD_UNLOAD (2)
 
@@ -268,5 +270,7 @@ int ppsratecheck(struct timeval *lasttime, int *curpps, int maxpps);
 int ratecheck(struct timeval *lasttime, const struct timeval *mininterval);
 
 int get_cpuid(void);
+
+#define curcpu 1
 
 #endif

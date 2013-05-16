@@ -258,8 +258,8 @@ dbuf_init(void)
 	 * with an average 4K block size.  The table will take up
 	 * totalmem*sizeof(void*)/4K (i.e. 2MB/GB with 8-byte pointers).
 	 */
-	while (hsize * 4096 < (uint64_t)physmem * PAGESIZE)
-		hsize <<= 1;
+//	while (hsize * 4096 < (uint64_t)physmem * PAGESIZE)
+//		hsize <<= 1;
 
 retry:
 	h->hash_table_mask = hsize - 1;
@@ -1478,11 +1478,11 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx)
 		(void) dbuf_dirty(db, tx);
 		bcopy(buf->b_data, db->db.db_data, db->db.db_size);
 		VERIFY(arc_buf_remove_ref(buf, db) == 1);
-		xuio_stat_wbuf_copied();
+//		xuio_stat_wbuf_copied();
 		return;
 	}
 
-	xuio_stat_wbuf_nocopy();
+//	xuio_stat_wbuf_nocopy();
 	if (db->db_state == DB_CACHED) {
 		dbuf_dirty_record_t *dr = db->db_last_dirty;
 

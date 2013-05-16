@@ -124,6 +124,7 @@ dsl_deleg_can_allow(char *ddname, nvlist_t *nvp, cred_t *cr)
 int
 dsl_deleg_can_unallow(char *ddname, nvlist_t *nvp, cred_t *cr)
 {
+#if 0
 	nvpair_t *whopair = NULL;
 	int error;
 	char idstr[32];
@@ -144,6 +145,7 @@ dsl_deleg_can_unallow(char *ddname, nvlist_t *nvp, cred_t *cr)
 		if (strcmp(idstr, &nvpair_name(whopair)[3]) != 0)
 			return (EPERM);
 	}
+#endif
 	return (0);
 }
 
@@ -416,6 +418,7 @@ static int
 dsl_check_user_access(objset_t *mos, uint64_t zapobj, const char *perm,
     int checkflag, cred_t *cr)
 {
+#if 0
 	const	gid_t *gids;
 	int	ngids;
 	int	i;
@@ -450,6 +453,9 @@ dsl_check_user_access(objset_t *mos, uint64_t zapobj, const char *perm,
 	}
 
 	return (EPERM);
+#else
+	return 0;
+#endif
 }
 
 /*
@@ -499,6 +505,7 @@ static void
 dsl_load_user_sets(objset_t *mos, uint64_t zapobj, avl_tree_t *avl,
     char checkflag, cred_t *cr)
 {
+#if 0
 	const	gid_t *gids;
 	int	ngids, i;
 	uint64_t id;
@@ -521,6 +528,7 @@ dsl_load_user_sets(objset_t *mos, uint64_t zapobj, avl_tree_t *avl,
 		(void) dsl_load_sets(mos, zapobj,
 		    ZFS_DELEG_GROUP_SETS, checkflag, &id, avl);
 	}
+#endif
 }
 
 /*
@@ -653,6 +661,7 @@ dsl_deleg_access(const char *dsname, const char *perm, cred_t *cr)
  * Other routines.
  */
 
+#if 0
 static void
 copy_create_perms(dsl_dir_t *dd, uint64_t pzapobj,
     boolean_t dosets, uint64_t uid, dmu_tx_t *tx)
@@ -695,6 +704,7 @@ copy_create_perms(dsl_dir_t *dd, uint64_t pzapobj,
 	}
 	zap_cursor_fini(&zc);
 }
+#endif
 
 /*
  * set all create time permission on new dataset.
@@ -702,6 +712,7 @@ copy_create_perms(dsl_dir_t *dd, uint64_t pzapobj,
 void
 dsl_deleg_set_create_perms(dsl_dir_t *sdd, dmu_tx_t *tx, cred_t *cr)
 {
+#if 0
 	dsl_dir_t *dd;
 	uint64_t uid = crgetuid(cr);
 
@@ -718,6 +729,7 @@ dsl_deleg_set_create_perms(dsl_dir_t *sdd, dmu_tx_t *tx, cred_t *cr)
 		copy_create_perms(sdd, pzapobj, B_FALSE, uid, tx);
 		copy_create_perms(sdd, pzapobj, B_TRUE, uid, tx);
 	}
+#endif
 }
 
 int

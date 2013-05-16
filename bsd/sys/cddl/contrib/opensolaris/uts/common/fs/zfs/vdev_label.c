@@ -598,6 +598,8 @@ vdev_inuse(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason,
 
 		case VDEV_LABEL_SPARE:
 			return (spa_has_spare(spa, device_guid));
+		default:
+			abort();
 		}
 	}
 
@@ -607,6 +609,7 @@ vdev_inuse(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason,
 	if (spa_l2cache_exists(device_guid, NULL))
 		return (B_TRUE);
 
+#if STILL_TO_PORT
 	/*
 	 * We can't rely on a pool's state if it's been imported
 	 * read-only.  Instead we look to see if the pools is marked
@@ -615,6 +618,7 @@ vdev_inuse(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason,
 	if ((spa = spa_by_guid(pool_guid, device_guid)) != NULL &&
 	    spa_mode(spa) == FREAD)
 		state = POOL_STATE_ACTIVE;
+#endif
 
 	/*
 	 * If the device is marked ACTIVE, then this device is in use by another
@@ -643,7 +647,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	char *buf;
 	size_t buflen;
 	int error;
-	uint64_t spare_guid, l2cache_guid;
+	uint64_t spare_guid = 0, l2cache_guid;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL;
 
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);

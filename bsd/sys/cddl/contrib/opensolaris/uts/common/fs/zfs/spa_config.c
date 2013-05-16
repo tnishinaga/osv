@@ -74,6 +74,7 @@ const char *spa_config_path = ZPOOL_CACHE;
 void
 spa_config_load(void)
 {
+#if 0
 	void *buf = NULL;
 	nvlist_t *nvlist, *child;
 	nvpair_t *nvpair;
@@ -137,8 +138,10 @@ out:
 		kmem_free(buf, fsize);
 
 	kobj_close_file(file);
+#endif
 }
 
+#if 0
 static void
 spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 {
@@ -188,6 +191,7 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	kmem_free(buf, buflen);
 	kmem_free(temp, MAXPATHLEN);
 }
+#endif
 
 /*
  * Synchronize pool configuration to disk.  This must be called with the
@@ -196,6 +200,7 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 void
 spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 {
+#if 0
 	spa_config_dirent_t *dp, *tdp;
 	nvlist_t *nvl;
 
@@ -260,6 +265,7 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 
 	if (postsysevent)
 		spa_event_notify(target, NULL, ESC_ZFS_CONFIG_SYNC);
+#endif
 }
 
 /*
@@ -271,6 +277,7 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 nvlist_t *
 spa_all_configs(uint64_t *generation)
 {
+#if 0
 	nvlist_t *pools;
 	spa_t *spa = NULL;
 
@@ -293,6 +300,9 @@ spa_all_configs(uint64_t *generation)
 	mutex_exit(&spa_namespace_lock);
 
 	return (pools);
+#else
+	return 0;
+#endif
 }
 
 void
@@ -313,6 +323,7 @@ spa_config_set(spa_t *spa, nvlist_t *config)
 nvlist_t *
 spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 {
+#if 0
 	nvlist_t *config, *nvroot;
 	vdev_t *rvd = spa->spa_root_vdev;
 	unsigned long hostid = 0;
@@ -445,6 +456,9 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
 
 	return (config);
+#else
+	return 0;
+#endif
 }
 
 /*

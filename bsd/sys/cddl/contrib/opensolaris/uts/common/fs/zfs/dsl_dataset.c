@@ -1050,7 +1050,7 @@ dsl_dataset_origin_rm_prep(struct dsl_ds_destroyarg *dsda, void *tag)
 		namelen = dsl_dataset_namelen(origin) + 1;
 		name = kmem_alloc(namelen, KM_SLEEP);
 		dsl_dataset_name(origin, name);
-#ifdef _KERNEL
+#if 0 //def _KERNEL
 		error = zfs_unmount_snap(name, NULL);
 		if (error) {
 			kmem_free(name, namelen);
@@ -2506,7 +2506,7 @@ dsl_dataset_snapshot_rename_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 	    ds->ds_snapname, 8, 1, &ds->ds_object, tx);
 	ASSERT0(err);
 	dsl_dataset_name(ds, newname);
-#ifdef _KERNEL
+#if 0 //def _KERNEL
 	zvol_rename_minors(oldname, newname);
 #endif
 
@@ -2537,13 +2537,13 @@ dsl_snapshot_rename_one(const char *name, void *arg)
 	 * For recursive snapshot renames the parent won't be changing
 	 * so we just pass name for both the to/from argument.
 	 */
-	err = zfs_secpolicy_rename_perms(snapname, snapname, CRED());
-	if (err != 0) {
-		strfree(snapname);
-		return (err == ENOENT ? 0 : err);
-	}
+//	err = zfs_secpolicy_rename_perms(snapname, snapname, CRED());
+//	if (err != 0) {
+//		strfree(snapname);
+//		return (err == ENOENT ? 0 : err);
+//	}
 
-#ifdef _KERNEL
+#if 0 //def _KERNEL
 	/*
 	 * For all filesystems undergoing rename, we'll need to unmount it.
 	 */
@@ -2699,7 +2699,6 @@ struct promotearg {
 };
 
 static int snaplist_space(list_t *l, uint64_t mintxg, uint64_t *spacep);
-static boolean_t snaplist_unstable(list_t *l);
 
 static int
 dsl_dataset_promote_check(void *arg1, void *arg2, dmu_tx_t *tx)
@@ -3639,6 +3638,7 @@ typedef struct zfs_hold_cleanup_arg {
 	char htag[MAXNAMELEN];
 } zfs_hold_cleanup_arg_t;
 
+#if 0
 static void
 dsl_dataset_user_release_onexit(void *arg)
 {
@@ -3662,6 +3662,7 @@ dsl_register_onexit_hold_cleanup(dsl_dataset_t *ds, const char *htag,
 	VERIFY3U(0, ==, zfs_onexit_add_cb(minor,
 	    dsl_dataset_user_release_onexit, ca, NULL));
 }
+#endif
 
 /*
  * If you add new checks here, you may need to add
@@ -3792,6 +3793,7 @@ dsl_dataset_user_hold(char *dsname, char *snapname, char *htag,
 	int error;
 	minor_t minor = 0;
 
+#if 0
 	if (cleanup_fd != -1) {
 		/* Currently we only support cleanup-on-exit of tempholds. */
 		if (!temphold)
@@ -3800,6 +3802,7 @@ dsl_dataset_user_hold(char *dsname, char *snapname, char *htag,
 		if (error)
 			return (error);
 	}
+#endif
 
 	ha = kmem_zalloc(sizeof (struct dsl_ds_holdarg), KM_SLEEP);
 
@@ -3808,8 +3811,8 @@ dsl_dataset_user_hold(char *dsname, char *snapname, char *htag,
 	error = spa_open(dsname, &spa, FTAG);
 	if (error) {
 		kmem_free(ha, sizeof (struct dsl_ds_holdarg));
-		if (cleanup_fd != -1)
-			zfs_onexit_fd_rele(cleanup_fd);
+//		if (cleanup_fd != -1)
+//			zfs_onexit_fd_rele(cleanup_fd);
 		return (error);
 	}
 
@@ -3835,12 +3838,14 @@ dsl_dataset_user_hold(char *dsname, char *snapname, char *htag,
 		if (dst->dst_err) {
 			dsl_dataset_name(ds, ha->failed);
 			*strchr(ha->failed, '@') = '\0';
+#if 0
 		} else if (error == 0 && minor != 0 && temphold) {
 			/*
 			 * If this hold is to be released upon process exit,
 			 * register that action now.
 			 */
 			dsl_register_onexit_hold_cleanup(ds, htag, minor);
+#endif
 		}
 		dsl_dataset_rele(ds, ha->dstg);
 	}
@@ -3855,8 +3860,8 @@ dsl_dataset_user_hold(char *dsname, char *snapname, char *htag,
 
 	kmem_free(ha, sizeof (struct dsl_ds_holdarg));
 	spa_close(spa, FTAG);
-	if (cleanup_fd != -1)
-		zfs_onexit_fd_rele(cleanup_fd);
+//	if (cleanup_fd != -1)
+//		zfs_onexit_fd_rele(cleanup_fd);
 	return (error);
 }
 
@@ -4006,7 +4011,7 @@ dsl_dataset_user_release_one(const char *dsname, void *arg)
 	}
 
 	if (might_destroy) {
-#ifdef _KERNEL
+#if 0 //def _KERNEL
 		name = kmem_asprintf("%s@%s", dsname, ha->snapname);
 		error = zfs_unmount_snap(name, NULL);
 		strfree(name);

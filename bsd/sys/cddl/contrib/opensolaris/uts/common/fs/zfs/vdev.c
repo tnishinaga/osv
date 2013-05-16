@@ -57,11 +57,11 @@ static vdev_ops_t *vdev_ops_table[] = {
 	&vdev_replacing_ops,
 	&vdev_spare_ops,
 #ifdef _KERNEL
-	&vdev_geom_ops,
+//	&vdev_geom_ops,
 #else
 	&vdev_disk_ops,
 #endif
-	&vdev_file_ops,
+//	&vdev_file_ops,
 	&vdev_missing_ops,
 	&vdev_hole_ops,
 	NULL

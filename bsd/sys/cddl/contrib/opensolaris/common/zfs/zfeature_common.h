@@ -48,7 +48,7 @@ typedef int (zfeature_func_t)(zfeature_info_t *fi, void *arg);
 
 #define	ZFS_FEATURE_DEBUG
 
-static enum spa_feature {
+typedef enum spa_feature {
 	SPA_FEATURE_ASYNC_DESTROY,
 	SPA_FEATURE_EMPTY_BPOBJ,
 	SPA_FEATURES

@@ -133,7 +133,9 @@
 #include <zfs_fletcher.h>
 #include <sys/sdt.h>
 
-#include <vm/vm_pageout.h>
+#include <bsd/porting/synch.h>
+
+//#include <vm/vm_pageout.h>
 
 #ifdef illumos
 #ifndef _KERNEL
@@ -192,6 +194,7 @@ int zfs_arc_grow_retry = 0;
 int zfs_arc_shrink_shift = 0;
 int zfs_arc_p_min_shift = 0;
 
+#if 0
 TUNABLE_QUAD("vfs.zfs.arc_max", &zfs_arc_max);
 TUNABLE_QUAD("vfs.zfs.arc_min", &zfs_arc_min);
 TUNABLE_QUAD("vfs.zfs.arc_meta_limit", &zfs_arc_meta_limit);
@@ -200,6 +203,7 @@ SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, arc_max, CTLFLAG_RDTUN, &zfs_arc_max, 0,
     "Maximum ARC size");
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, arc_min, CTLFLAG_RDTUN, &zfs_arc_min, 0,
     "Minimum ARC size");
+#endif
 
 /*
  * Note that buffers can be in one of 6 states:
@@ -472,10 +476,10 @@ static uint64_t		arc_loaned_bytes;
 static uint64_t		arc_meta_used;
 static uint64_t		arc_meta_limit;
 static uint64_t		arc_meta_max = 0;
-SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, arc_meta_used, CTLFLAG_RDTUN,
-    &arc_meta_used, 0, "ARC metadata used");
-SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, arc_meta_limit, CTLFLAG_RDTUN,
-    &arc_meta_limit, 0, "ARC metadata limit");
+//SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, arc_meta_used, CTLFLAG_RDTUN,
+//    &arc_meta_used, 0, "ARC metadata used");
+//SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, arc_meta_limit, CTLFLAG_RDTUN,
+//    &arc_meta_limit, 0, "ARC metadata limit");
 
 typedef struct l2arc_buf_hdr l2arc_buf_hdr_t;
 
@@ -647,6 +651,7 @@ boolean_t l2arc_noprefetch = B_TRUE;		/* don't cache prefetch bufs */
 boolean_t l2arc_feed_again = B_TRUE;		/* turbo warmup */
 boolean_t l2arc_norw = B_TRUE;			/* no reads during writes */
 
+#if 0
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, l2arc_write_max, CTLFLAG_RW,
     &l2arc_write_max, 0, "max write size");
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, l2arc_write_boost, CTLFLAG_RW,
@@ -706,6 +711,7 @@ SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, mfu_ghost_data_lsize, CTLFLAG_RD,
 
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, l2c_only_size, CTLFLAG_RD,
     &ARC_l2c_only.arcs_size, 0, "size of mru state");
+#endif
 
 /*
  * L2ARC Internals
@@ -1002,8 +1008,8 @@ buf_init(void)
 	 * with an average 64K block size.  The table will take up
 	 * totalmem*sizeof(void*)/64K (eg. 128KB/GB with 8-byte pointers).
 	 */
-	while (hsize * 65536 < (uint64_t)physmem * PAGESIZE)
-		hsize <<= 1;
+//	while (hsize * 65536 < (uint64_t)physmem * PAGESIZE)
+//		hsize <<= 1;
 retry:
 	buf_hash_table.ht_mask = hsize - 1;
 	buf_hash_table.ht_table =
@@ -2281,7 +2287,7 @@ static int
 arc_reclaim_needed(void)
 {
 
-#ifdef _KERNEL
+#if 0 //def _KERNEL
 
 	if (needfree)
 		return (1);
@@ -2395,7 +2401,7 @@ arc_kmem_reap_now(arc_reclaim_strategy_t strat)
 }
 
 static void
-arc_reclaim_thread(void *dummy __unused)
+arc_reclaim_thread(void *dummy __unused2)
 {
 	clock_t			growtime = 0;
 	arc_reclaim_strategy_t	last_reclaim = ARC_RECLAIM_CONS;
@@ -3176,7 +3182,7 @@ top:
 		ARCSTAT_CONDSTAT(!(hdr->b_flags & ARC_PREFETCH),
 		    demand, prefetch, hdr->b_type != ARC_BUFC_METADATA,
 		    data, metadata, misses);
-#ifdef _KERNEL
+#if 0 // def _KERNEL
 		curthread->td_ru.ru_inblock++;
 #endif
 
@@ -3667,7 +3673,7 @@ arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 static int
 arc_memory_throttle(uint64_t reserve, uint64_t inflight_data, uint64_t txg)
 {
-#ifdef _KERNEL
+#if 0 //def _KERNEL
 	uint64_t available_memory =
 	    ptoa((uintmax_t)cnt.v_free_count + cnt.v_cache_count);
 	static uint64_t page_load = 0;
@@ -3786,11 +3792,11 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 }
 
 static kmutex_t arc_lowmem_lock;
-#ifdef _KERNEL
+#if 0 // def _KERNEL
 static eventhandler_tag arc_event_lowmem = NULL;
 
 static void
-arc_lowmem(void *arg __unused, int howto __unused)
+arc_lowmem(void *arg __unused2, int howto __unused2)
 {
 
 	/* Serialize access via arc_lowmem_lock. */
@@ -3825,11 +3831,13 @@ arc_init(void)
 	/* Convert seconds to clock ticks */
 	arc_min_prefetch_lifespan = 1 * hz;
 
-	/* Start out with 1/8 of all memory */
-	arc_c = kmem_size() / 8;
+	arc_c = 32 * 1024 * 1024;
+
+//	/* Start out with 1/8 of all memory */
+//	arc_c = kmem_size() / 8;
 
 #ifdef sun
-#ifdef _KERNEL
+#if 0 // def _KERNEL
 	/*
 	 * On architectures where the physical memory can be larger
 	 * than the addressable space (intel in 32-bit mode), we may
@@ -3847,7 +3855,7 @@ arc_init(void)
 		arc_c_max = arc_c_min;
 	arc_c_max = MAX(arc_c * 5, arc_c_max);
 
-#ifdef _KERNEL
+#if 0 //def _KERNEL
 	/*
 	 * Allow the tunables to override our calculations if they are
 	 * reasonable (ie. over 16MB)
@@ -3940,10 +3948,10 @@ arc_init(void)
 		kstat_install(arc_ksp);
 	}
 
-	(void) thread_create(NULL, 0, arc_reclaim_thread, NULL, 0, &p0,
+	(void) thread_create(NULL, 0, arc_reclaim_thread, NULL, 0, NULL,
 	    TS_RUN, minclsyspri);
 
-#ifdef _KERNEL
+#if 0 //def _KERNEL
 	arc_event_lowmem = EVENTHANDLER_REGISTER(vm_lowmem, arc_lowmem, NULL,
 	    EVENTHANDLER_PRI_FIRST);
 #endif
@@ -3951,13 +3959,13 @@ arc_init(void)
 	arc_dead = FALSE;
 	arc_warm = B_FALSE;
 
-	if (zfs_write_limit_max == 0)
-		zfs_write_limit_max = ptob(physmem) >> zfs_write_limit_shift;
-	else
+//	if (zfs_write_limit_max == 0)
+//		zfs_write_limit_max = ptob(physmem) >> zfs_write_limit_shift;
+//	else
 		zfs_write_limit_shift = 0;
 	mutex_init(&zfs_write_limit_lock, NULL, MUTEX_DEFAULT, NULL);
 
-#ifdef _KERNEL
+#if 0 //def _KERNEL
 	if (TUNABLE_INT_FETCH("vfs.zfs.prefetch_disable", &zfs_prefetch_disable))
 		prefetch_tunable_set = 1;
 
@@ -4041,7 +4049,7 @@ arc_fini(void)
 	ASSERT(arc_loaned_bytes == 0);
 
 	mutex_destroy(&arc_lowmem_lock);
-#ifdef _KERNEL
+#if 0 //def _KERNEL
 	if (arc_event_lowmem != NULL)
 		EVENTHANDLER_DEREGISTER(vm_lowmem, arc_event_lowmem);
 #endif
@@ -4860,7 +4868,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
  * heart of the L2ARC.
  */
 static void
-l2arc_feed_thread(void *dummy __unused)
+l2arc_feed_thread(void *dummy __unused2)
 {
 	callb_cpr_t cpr;
 	l2arc_dev_t *dev;
@@ -5101,7 +5109,7 @@ l2arc_start(void)
 	if (!(spa_mode_global & FWRITE))
 		return;
 
-	(void) thread_create(NULL, 0, l2arc_feed_thread, NULL, 0, &p0,
+	(void) thread_create(NULL, 0, l2arc_feed_thread, NULL, 0, NULL,
 	    TS_RUN, minclsyspri);
 }
 

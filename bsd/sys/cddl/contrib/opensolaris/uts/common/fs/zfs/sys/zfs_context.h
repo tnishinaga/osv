@@ -31,6 +31,8 @@ extern "C" {
 #endif
 
 #include <bsd/porting/netport.h>
+#include <bsd/porting/synch.h>
+#include <osv/fcntl.h>
 
 #include <sys/param.h>
 #include <stdint.h>
@@ -76,6 +78,8 @@ extern "C" {
 #include <sys/u8_textprep.h>
 #include <sys/fm/util.h>
 #include <sys/sunddi.h>
+#include <sys/priority.h>
+#include <sys/random.h>
 
 #include <stdarg.h>
 

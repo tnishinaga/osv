@@ -25,8 +25,7 @@
 #ifndef	_SYS_FS_ZFS_ZNODE_H
 #define	_SYS_FS_ZFS_ZNODE_H
 
-#if 0
-#ifdef _KERNEL
+#if 0 // def _KERNEL
 #include <sys/list.h>
 #include <sys/dmu.h>
 #include <sys/sa.h>
@@ -166,7 +165,7 @@ extern "C" {
  * They are used to protect creates, deletes, and renames.
  * Each directory znode has a mutex and a list of locked names.
  */
-#ifdef _KERNEL
+#if 0 //def _KERNEL
 typedef struct zfs_dirlock {
 	char		*dl_name;	/* directory entry being locked */
 	uint32_t	dl_sharecnt;	/* 0 if exclusive, > 0 if shared */
@@ -377,7 +376,6 @@ extern int zfs_obj_to_path(objset_t *osp, uint64_t obj, char *buf, int len);
 
 #ifdef	__cplusplus
 }
-#endif
 #endif
 
 #endif	/* _SYS_FS_ZFS_ZNODE_H */

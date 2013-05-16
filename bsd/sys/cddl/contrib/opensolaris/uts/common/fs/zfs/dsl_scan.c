@@ -47,14 +47,14 @@
 #include <sys/sa_impl.h>
 #include <sys/zfeature.h>
 #ifdef _KERNEL
-#include <sys/zfs_vfsops.h>
+//#include <sys/zfs_vfsops.h>
 #endif
 
 typedef int (scan_cb_t)(dsl_pool_t *, const blkptr_t *, const zbookmark_t *);
 
-static scan_cb_t dsl_scan_defrag_cb;
+//static scan_cb_t dsl_scan_defrag_cb;
 static scan_cb_t dsl_scan_scrub_cb;
-static scan_cb_t dsl_scan_remove_cb;
+//static scan_cb_t dsl_scan_remove_cb;
 static dsl_syncfunc_t dsl_scan_cancel_sync;
 static void dsl_scan_sync_state(dsl_scan_t *, dmu_tx_t *tx);
 
