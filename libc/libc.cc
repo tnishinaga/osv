@@ -114,8 +114,24 @@ int sched_yield()
     return 0;
 }
 
+<<<<<<< ctxsw
 int sched_setaffinity(pid_t pid, size_t cs_size, cpu_set_t *mask)
 
+||||||| semaphore
+=======
+<<<<<<< Updated upstream
+||||||| merged common ancestors
+int sched_setaffinity(pid_t pid, size_t cs_size, cpu_set_t *mask)
+
+=======
+int sched_setaffinity(pid_t pid, size_t cs_size, cpu_set_t *mask)
+{
+    //auto w =
+    return 0;
+}
+
+>>>>>>> Stashed changes
+>>>>>>> local
 extern "C"
 int getloadavg(double loadavg[], int nelem)
 {

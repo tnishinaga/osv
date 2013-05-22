@@ -50,6 +50,12 @@ private:
     thread _thread;
 };
 
+struct cpu_pin {
+    thread* waiter;
+    cpu* to;
+    // we keep the pinned thread in struct cpu, to make accessing it fast
+} cpu::pin;
+
 cpu::cpu()
     : idle_thread([this] { idle(); }, thread::attr(this))
 {
@@ -215,7 +221,10 @@ void cpu::load_balance()
     timer tmr(*thread::current());
     while (true) {
         tmr.set(clock::get()->time() + 100_ms);
-        thread::wait_until([&] { return tmr.expired(); });
+        thread::wait_until([&] { return tmr.expired() || pin_thread.load(std::memory_order_relaxed); });
+        if (pin_thread.load(std::memory_order_relaxed)) {
+            auto t = pin_thread.load(std::memory_order_acquire);
+        }
         if (runqueue.empty()) {
             continue;
         }
@@ -477,6 +486,17 @@ void thread::set_cleanup(std::function<void ()> cleanup)
 unsigned long thread::id()
 {
     return _id;
+}
+
+void thread::pin(cpu* c)
+{
+    with_lock(pin_mutex, [=] {
+        pin.waiter = current();
+        pin.to = c;
+        _cpu->pin_thread.store(this, std::memory_order_release);
+        _cpu->bringup_thread->wake(); // really the load balancer
+        wait_until([&] { return !pin.waiter; });
+    });
 }
 
 void preempt_disable()

@@ -26,6 +26,7 @@ class timer;
 class timer_list;
 class cpu_mask;
 class thread_runtime_compare;
+struct cpu_pin;
 
 void schedule(bool yield = false);
 
