@@ -287,6 +287,7 @@ struct cpu {
     void idle();
     void do_idle();
     void load_balance();
+    void migrate(thread& t, cpu* c);
     unsigned load();
     void reschedule_from_interrupt(bool preempt = false);
     void enqueue(thread& t, u64 now);

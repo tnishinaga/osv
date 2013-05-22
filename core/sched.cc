@@ -193,6 +193,23 @@ unsigned cpu::load()
     return runqueue.size();
 }
 
+// must be called on c->_cpu, with interrupts disabled
+void cpu::migrate(thread& t, cpu* c)
+{
+    trace_migrate(&t, c->id);
+    runqueue.erase(runqueue.iterator_to(t));
+    // we won't race with wake(), since we're not thread::waiting
+    assert(t._status.load() == thread::status::queued);
+    t._status.store(thread::status::waking);
+    t.suspend_timers();
+    t._cpu = c;
+    c->incoming_wakeups[id].push_front(t);
+    c->incoming_wakeups_mask.set(id);
+    // FIXME: avoid if the cpu is alive and if the priority does not
+    // FIXME: warrant an interruption
+    wakeup_ipi.send(c);
+}
+
 void cpu::load_balance()
 {
     timer tmr(*thread::current());
@@ -213,19 +230,7 @@ void cpu::load_balance()
             if (i == runqueue.rend()) {
                 return;
             }
-            auto& mig = *i;
-            trace_migrate(&mig, min->id);
-            runqueue.erase(std::prev(i.base()));  // i.base() returns off-by-one
-            // we won't race with wake(), since we're not thread::waiting
-            assert(mig._status.load() == thread::status::queued);
-            mig._status.store(thread::status::waking);
-            mig.suspend_timers();
-            mig._cpu = min;
-            min->incoming_wakeups[id].push_front(mig);
-            min->incoming_wakeups_mask.set(id);
-            // FIXME: avoid if the cpu is alive and if the priority does not
-            // FIXME: warrant an interruption
-            wakeup_ipi.send(min);
+            migrate(*i, min);
         });
     }
 }
