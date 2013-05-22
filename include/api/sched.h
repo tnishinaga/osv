@@ -20,6 +20,10 @@ struct sched_param {
 	int sched_ss_max_repl;
 };
 
+typedef struct {
+    unsigned long __bits[1024 / sizeof(unsigned long)];
+} cpu_set_t;
+
 int    sched_get_priority_max(int);
 int    sched_get_priority_min(int);
 int    sched_getparam(pid_t, struct sched_param *);
@@ -28,6 +32,7 @@ int    sched_rr_get_interval(pid_t, struct timespec *);
 int    sched_setparam(pid_t, const struct sched_param *);
 int    sched_setscheduler(pid_t, int, const struct sched_param *);
 int     sched_yield(void);
+int sched_setaffinity(pid_t pid, size_t cpusetsize, cpu_set_t *mask);
 
 #define SCHED_OTHER 0
 #define SCHED_FIFO 1

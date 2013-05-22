@@ -114,6 +114,8 @@ int sched_yield()
     return 0;
 }
 
+int sched_setaffinity(pid_t pid, size_t cs_size, cpu_set_t *mask)
+
 extern "C"
 int getloadavg(double loadavg[], int nelem)
 {
