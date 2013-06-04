@@ -57,6 +57,7 @@
 /java/cli.jar: java/cli.jar
 /tools/ifconfig.so: ./tools/ifconfig/ifconfig.so
 /tools/lsroute.so: ./tools/route/lsroute.so
+/tools/&/netserver-osv: ../../tools/netperf/&
 /console/util.js: ../../console/util.js
 /console/autocomplete.js: ../../console/autocomplete.js
 /console/optparse.js: ../../console/optparse.js
