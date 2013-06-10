@@ -20,6 +20,7 @@
 #include <osv/debug.h>
 
 #include "sched.hh"
+#include "osv/trace.hh"
 
 #include "drivers/clock.hh"
 #include "drivers/clockevent.hh"
@@ -28,6 +29,11 @@
 #include <osv/ioctl.h>
 #include <bsd/sys/net/ethernet.h>
 #include <bsd/sys/net/if_types.h>
+
+TRACEPOINT(trace_virtio_net_rx_packet, "if=%d, len=%d", int, int);
+TRACEPOINT(trace_virtio_net_rx_wake, "");
+TRACEPOINT(trace_virtio_net_tx_packet, "if=%d, len=%d", int, int);
+TRACEPOINT(trace_virtio_net_tx_wake, "");
 
 using namespace memory;
 
@@ -209,6 +215,8 @@ namespace virtio {
             u32 len;
             virtio_net_req * req;
 
+            trace_virtio_net_rx_wake();
+
             while((req = static_cast<virtio_net_req*>(_rx_queue->get_buf(&len))) != nullptr) {
 
                 auto ii = req->payload._nodes.begin();
@@ -223,6 +231,9 @@ namespace virtio {
                 m->m_len = len;
 
                 _ifn->if_ipackets++;
+
+                trace_virtio_net_rx_packet(_ifn->if_index, len);
+
                 (*_ifn->if_input)(_ifn, m);
             }
 
@@ -296,7 +307,7 @@ namespace virtio {
                 virtio_net_d("%s: gc tx buffers to clear space");
                 tx_gc();
             } else {
-                virtio_net_d("%s: no room", __FUNCTION__);
+                virtio_net_e("%s: no room", __FUNCTION__);
                 delete req;
                 return false;
             }
@@ -306,6 +317,8 @@ namespace virtio {
             delete req;
             return false;
         }
+
+        trace_virtio_net_tx_packet(_ifn->if_index, req->payload.len());
 
         if (flush)
             _tx_queue->kick();
@@ -318,6 +331,7 @@ namespace virtio {
         while (1) {
             // Wait for tx queue (used elements)
             virtio_driver::wait_for_queue(_tx_queue);
+            trace_virtio_net_tx_wake();
             tx_gc();
         }
     }
