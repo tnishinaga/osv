@@ -5,6 +5,7 @@
 #include "string.h"
 #include "cpuid.hh"
 #include "barrier.hh"
+#include <osv/percpu.hh>
 
 class kvmclock : public clock {
 private:
@@ -31,7 +32,7 @@ private:
     u64 system_time();
 private:
     pvclock_wall_clock* _wall;
-    pvclock_vcpu_time_info* _sys;  // FIXME: make percpu
+    pvclock_vcpu_time_info* _sys;
 };
 
 kvmclock::kvmclock()

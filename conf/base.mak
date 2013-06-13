@@ -1,5 +1,5 @@
 conf-preempt=1
-conf-tracing=0
+conf-tracing=1
 conf-debug_memory=0
 
 # debug level logging (enabled automatically in mode=debug)

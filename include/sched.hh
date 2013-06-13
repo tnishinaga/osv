@@ -294,6 +294,7 @@ struct cpu {
     unsigned load();
     void reschedule_from_interrupt(bool preempt = false);
     void enqueue(thread& t, u64 now);
+    void* percpu_base;
 };
 
 void preempt();
