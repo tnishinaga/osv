@@ -31,9 +31,6 @@ elf::tls_data tls;
 
 inter_processor_interrupt wakeup_ipi{[] {}};
 
-constexpr u64 vruntime_bias = 4_ms;
-constexpr u64 max_slice = 10_ms;
-
 }
 
 #include "arch-switch.hh"
@@ -70,17 +67,14 @@ void cpu::reschedule_from_interrupt(bool preempt)
     handle_incoming_wakeups();
     auto now = clock::get()->time();
     thread* p = thread::current();
-    // avoid cycling through the runqueue if p still has the highest priority
-    auto bias = vruntime_bias;
-    if (p->_borrow) {
-        bias /= 2;  // preempt threads on borrowed time sooner
-    }
-    if (p->_status == thread::status::running
-            && (runqueue.empty()
-                || p->_vruntime + now < runqueue.begin()->_vruntime + bias)) {
+    if ((p->_status == thread::status::running) &&
+        (p->_vruntime.get_runtime(now) < vruntime_bias)) {
         return;
     }
-    p->_vruntime += now;
+    p->_vruntime.sched_out(now);
+    if (p == &idle_thread) {
+        p->_vruntime.supress();
+    }
     if (p->_status == thread::status::running) {
         p->_status.store(thread::status::queued);
         enqueue(*p, now);
@@ -88,7 +82,7 @@ void cpu::reschedule_from_interrupt(bool preempt)
     auto ni = runqueue.begin();
     auto n = &*ni;
     runqueue.erase(ni);
-    n->_vruntime -= now;
+    n->_vruntime.sched_in(now);
     assert(n->_status.load() == thread::status::queued);
     n->_status.store(thread::status::running);
     if (n != thread::current()) {
@@ -163,17 +157,6 @@ void cpu::handle_incoming_wakeups()
 void cpu::enqueue(thread& t, u64 now)
 {
     trace_queue(&t);
-    auto head = std::min(t._vruntime, thread::current()->_vruntime + now);
-    auto tail = head + max_slice * runqueue.size();
-    // special treatment for idle thread: make sure it is in the back of the queue
-    if (&t == &idle_thread) {
-        t._vruntime = thread::max_vruntime;
-        t._borrow = 0;
-    } else if (t._vruntime > tail) {
-        t._borrow = t._vruntime - tail;
-    } else {
-        t._borrow = 0;
-    }
     runqueue.insert_equal(t);
 }
 
@@ -279,7 +262,7 @@ thread::thread(std::function<void ()> func, attr attr, bool main)
     , _status(status::unstarted)
     , _attr(attr)
     , _timers_need_reload()
-    , _vruntime(clock::get()->time())
+    , _vruntime()
     , _joiner()
 {
     with_lock(thread_list_mutex, [this] {
@@ -295,7 +278,7 @@ thread::thread(std::function<void ()> func, attr attr, bool main)
         set_cleanup([=] { delete this; });
     }
     if (main) {
-        _vruntime = 0; // simulate the first schedule into this thread
+        _vruntime.sched_in(clock::get()->time());
         _status.store(status::running);
     }
 }

@@ -317,7 +317,7 @@ class osv_info_threads(gdb.Command):
                            function,
                            fname,
                            sal.line,
-                           t['_vruntime'],
+                           t['_vruntime']['_runtime'],
                            )
                           )
                 show_thread_timers(t)

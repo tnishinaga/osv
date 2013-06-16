@@ -3,6 +3,7 @@
 
 #include "arch-thread-state.hh"
 #include "arch-cpu.hh"
+#include "drivers/clock.hh"
 #include <functional>
 #include "tls.hh"
 #include "elf.hh"
@@ -36,6 +37,10 @@ extern "C" {
 namespace bi = boost::intrusive;
 
 const unsigned max_cpus = sizeof(unsigned long) * 8;
+
+constexpr u64 vruntime_bias = 2_ms;
+constexpr u64 max_slice = 10_ms;
+
 
 class cpu_set {
 public:
@@ -133,6 +138,77 @@ private:
     friend class timer_list;
 };
 
+//
+// The vruntime class is a measure of the thread's dynamic priority, the lower
+// it is, the higher the dynamic priority of the thread. Threads are maintained
+// by the scheduler in a list ordered by vruntime.
+//
+// The scheduler uses sched_out() and sched_in() to update the dynamic priority.
+// the sched_* functions change _R value between 0 and max_slice, so max_slice is
+// also the maximum difference between the various threads.
+//
+class vruntime {
+public:
+    vruntime() : _R(max_slice/2), _started(0), _ended(0), _runtime(0), _waittime(0) {}
+
+    void supress() {
+        _R = max_slice+1;
+    }
+
+    // get the time passed since the thread was scheduled-in
+    u64 get_runtime(u64 now) {
+        return _started ? (now - _started): 0;
+    }
+
+    // invoked by the scheduler when the thread stops getting cpu
+    void sched_out(u64 now) {
+        u64 dT = 0;
+        if (_started) {
+            dT = (now - _started);
+            _runtime += dT;
+        }
+        _started = 0;
+        _ended = now;
+
+        _R += dT;
+        if (_R > max_slice)
+            _R = max_slice;
+    }
+
+    // invoked by the scheduler when the thread starts getting cpu
+    void sched_in(u64 now) {
+        u64 dT = 0;
+        if (_ended) {
+            dT = (now - _ended);
+            _waittime += (now - dT);
+        }
+        _started = now;
+        _ended = 0;
+
+        // regain dynamic priority slower (more threads are waiting than running)
+        // FIXME: use a function of the number of running threads instead 0.1
+        dT = 0.1*dT;
+        if (dT > _R)
+            _R = 0;
+        else
+            _R -= dT;
+    }
+
+    friend bool operator<(const vruntime &a, const vruntime &b) {
+        return (a._R < b._R);
+    }
+
+private:
+    // _R: runtime dynamic priority. a number between 0 to max_slice,
+    // same as
+    u64 _R;
+    u64 _started;
+    u64 _ended;
+    // statistics (total runtime and total waittime)
+    u64 _runtime;
+    u64 _waittime;
+};
+
 class thread {
 public:
     struct stack_info {
@@ -211,9 +287,7 @@ private:
     arch_thread _arch;
     arch_fpu _fpu;
     unsigned long _id;
-    u64 _vruntime;
-    static const u64 max_vruntime = std::numeric_limits<u64>::max();
-    u64 _borrow;
+    vruntime _vruntime;
     std::function<void ()> _cleanup;
     friend void thread_main_c(thread* t);
     friend class wait_guard;
@@ -260,7 +334,7 @@ private:
 class thread_runtime_compare {
 public:
     bool operator()(const thread& t1, const thread& t2) const {
-        return t1._vruntime - t1._borrow < t2._vruntime - t2._borrow;
+        return (t1._vruntime < t2._vruntime);
     }
 };
 
