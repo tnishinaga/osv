@@ -61,6 +61,9 @@ void cpu::schedule(bool yield)
     });
 }
 
+TRACEPOINT(trace_sched_runqueue, "%p, _R=%d", void *, u64);
+TRACEPOINT(trace_sched_running_bias, "%p, %d", void *, u64);
+
 void cpu::reschedule_from_interrupt(bool preempt)
 {
     need_reschedule = false;
@@ -69,6 +72,7 @@ void cpu::reschedule_from_interrupt(bool preempt)
     thread* p = thread::current();
     if ((p->_status == thread::status::running) &&
         (p->_vruntime.get_runtime(now) < vruntime_bias)) {
+        trace_sched_running_bias(p, p->_vruntime.get_runtime(now));
         return;
     }
     p->_vruntime.sched_out(now);
@@ -79,6 +83,12 @@ void cpu::reschedule_from_interrupt(bool preempt)
         p->_status.store(thread::status::queued);
         enqueue(*p, now);
     }
+
+    trace_sched_runqueue((void*)0, 0);
+    for (auto i = runqueue.begin(); i != runqueue.end(); i++) {
+        trace_sched_runqueue(&(*i), (*i)._vruntime.getR());
+    }
+
     auto ni = runqueue.begin();
     auto n = &*ni;
     runqueue.erase(ni);

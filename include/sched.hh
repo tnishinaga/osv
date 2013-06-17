@@ -194,6 +194,8 @@ public:
             _R -= dT;
     }
 
+    u64 getR() { return _R; }
+
     friend bool operator<(const vruntime &a, const vruntime &b) {
         return (a._R < b._R);
     }
