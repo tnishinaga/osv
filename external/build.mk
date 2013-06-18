@@ -13,9 +13,9 @@ endef
 
 O=../build/external
 
-.PHONEY: all gcc
+.PHONEY: all gcc boost
 
-all: gcc
+all: gcc boost
 
 gcc:
 	mkdir -p $O
@@ -32,3 +32,15 @@ gcc:
 	$(MAKE) -C $O/gcc install
 	ln -sf usr/lib64 $O/bin/lib64
 
+boost:
+	mkdir -p $O
+	$(call svn-clone,$O/boost,http://svn.boost.org/svn/boost,tags/release/Boost_1_50_0)
+	mkdir -p $O/bin/usr
+	ln -sf lib64 $O/bin/usr/lib
+	cd $O/boost && ./bootstrap.sh \
+		--with-libraries=program_options \
+		--prefix=$(abspath $O/bin/usr)
+	cd $O/boost && ./b2 threading=multi cxxflags=-mno-red-zone
+	rm -rf $O/bin/usr/lib64/libboost*
+	cd $O/boost && ./b2 install
+	for i in $O/bin/usr/lib64/libboost*.{a,so}; do mv $$i $$(echo $$i | sed -E 's/\.(a|so)$$/-mt.\1/'); done 
