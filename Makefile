@@ -7,6 +7,8 @@ submake = $(out)/Makefile
 quiet = $(if $V, $1, @echo " $2"; $1)
 silentant = $(if $V,, scripts/silentant.py)
 
+.PHONY: external
+
 # It's not practical to build large Java programs from make, because of
 # how Java does dependencies; so we use ant instead.  But we also cannot
 # call ant from the main makefile (build.mk), since make will have no
@@ -29,5 +31,8 @@ $(submake): Makefile
 
 clean:
 	$(call quiet, rm -rf build/$(mode), CLEAN)
+
+external:
+	$(MAKE) -C external -f build.mk
 
 .DELETE_ON_ERROR:
