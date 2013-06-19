@@ -13,9 +13,9 @@ endef
 
 O=../build/external
 
-.PHONEY: all gcc boost jdk
+.PHONEY: all gcc boost jdk fontconfig
 
-all: gcc boost jdk
+all: gcc boost jdk fontconfig
 
 gcc:
 	mkdir -p $O
@@ -69,4 +69,12 @@ jdk:
 		--with-rhino
 	sed -i 's/DISABLE_INTREE_EC="true"/DISABLE_INTREE_EC=""/' $O/jdk/Makefile
 	cd $O/jdk && $(jdk-extra) make
+
+fontconfig:
+	$(call git-clone,$O/fontconfig,git://anongit.freedesktop.org/fontconfig,2.10.2)
+	cd $O/fontconfig && CFLAGS=-mno-red-zone ./autogen.sh \
+		--sysconfdir=/etc --prefix=/usr --mandir=/usr/share/man
+	cd $O/fontconfig && make
+	# can't use make install, since it will try to write to /usr
+	install -D $O/fontconfig/src/.libs/libfontconfig.so $O/bin/usr/lib64/libfontconfig.so.1
 
