@@ -13,9 +13,9 @@ endef
 
 O=../build/external
 
-.PHONEY: all gcc boost
+.PHONEY: all gcc boost jdk
 
-all: gcc boost
+all: gcc boost jdk
 
 gcc:
 	mkdir -p $O
@@ -44,3 +44,29 @@ boost:
 	rm -rf $O/bin/usr/lib64/libboost*
 	cd $O/boost && ./b2 install
 	for i in $O/bin/usr/lib64/libboost*.{a,so}; do mv $$i $$(echo $$i | sed -E 's/\.(a|so)$$/-mt.\1/'); done 
+
+openjdk.bin = /usr/lib/jvm/java-1.7.0-openjdk.x86_64
+
+# export BUILD_HEADLESS_ONLY=true
+
+jdk-extra = EXTRA_CFLAGS=-mno-red-zone
+
+jdk:
+	mkdir -p $O
+	test -d $O/jdk || hg clone http://icedtea.classpath.org/hg/release/icedtea7-2.3 $O/jdk
+	cd $O/jdk && hg pull -u
+	cd $O/jdk && ./autogen.sh
+	cd $O/jdk && $(jdk-extra) ./configure \
+		--disable-hg \
+		--disable-docs \
+		--disable-bootstrap \
+		--enable-system-lcms \
+		--enable-system-zlib \
+		--enable-system-png \
+		--enable-system-gif \
+		--with-parallel-jobs \
+		--disable-tests \
+		--with-rhino
+	sed -i 's/DISABLE_INTREE_EC="true"/DISABLE_INTREE_EC=""/' $O/jdk/Makefile
+	cd $O/jdk && $(jdk-extra) make
+
