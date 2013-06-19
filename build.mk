@@ -484,14 +484,8 @@ boost-libs := $(boost-lib-dir)/libboost_program_options-mt.a
 
 bsd/%.o: COMMON += -D_KERNEL -DSMP 
 
-usr.img: usr.manifest
-	$(call quiet, \
-		JDKBASE=$(jdkbase) \
-		GCCBASE=$(gccbase) \
-		MISCBASE=$(miscbase) \
-		BUILDDIR="${@}.tmp" \
-		IMAGE="$@" \
-		sh $(src)/scripts/mkromfs.sh, MKROMFS $@)
+usr.img:
+	cp $(src)/zfs.img $@
 
 jni = java/jni/balloon.so java/jni/elf-loader.so java/jni/networking.so \
 	java/jni/stty.so java/jni/tracepoint.so
