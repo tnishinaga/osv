@@ -13,9 +13,9 @@ endef
 
 O=../build/external
 
-.PHONEY: all gcc boost jdk fontconfig
+.PHONEY: all gcc boost jdk fontconfig freetype
 
-all: gcc boost jdk fontconfig
+all: gcc boost jdk fontconfig freetype
 
 gcc:
 	mkdir -p $O
@@ -78,3 +78,10 @@ fontconfig:
 	# can't use make install, since it will try to write to /usr
 	install -D $O/fontconfig/src/.libs/libfontconfig.so $O/bin/usr/lib64/libfontconfig.so.1
 
+freetype:
+	$(call git-clone,$O/freetype,git://git.sv.nongnu.org/freetype/freetype2.git,VER-2-4-10)
+	cd $O/freetype && ./autogen.sh
+	cd $O/freetype && CFLAGS=-mno-red-zone ./configure
+	cd $O/freetype && make
+	# can't use make install, since it will try to write to /usr
+	install -D $O/freetype/objs/.libs/libfreetype.so $O/bin/usr/lib64/libfreetype.so.6
