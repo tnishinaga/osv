@@ -13,9 +13,9 @@ endef
 
 O=../build/external
 
-.PHONEY: all gcc boost jdk fontconfig freetype
+.PHONEY: all gcc boost jdk fontconfig freetype libjpeg
 
-all: gcc boost jdk fontconfig freetype
+all: gcc boost jdk fontconfig freetype libjpeg
 
 gcc:
 	mkdir -p $O
@@ -85,3 +85,12 @@ freetype:
 	cd $O/freetype && make
 	# can't use make install, since it will try to write to /usr
 	install -D $O/freetype/objs/.libs/libfreetype.so $O/bin/usr/lib64/libfreetype.so.6
+
+libjpeg:
+	$(call svn-clone,$O/libjpeg,svn://svn.code.sf.net/p/libjpeg-turbo/code,tags/1.2.90)
+	cd $O/libjpeg && autoreconf -fiv
+	cd $O/libjpeg && CFLAGS=-mno-red-zone ./configure
+	cd $O/libjpeg && make
+	# can't use make install, since it will try to write to /usr
+	install -D $O/libjpeg/.libs/libjpeg.so.62 $O/bin/usr/lib64/libjpeg.so.62
+
