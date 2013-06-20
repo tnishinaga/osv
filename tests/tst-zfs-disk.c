@@ -76,8 +76,8 @@ typedef struct ztest_shared_opts {
 } ztest_shared_opts_t;
 
 static ztest_shared_opts_t ztest_opts = {
-	.zo_pool = { 'z', 't', 'e', 's', 't', '\0' },
-	.zo_dir = { '/', 't', 'm', 'p', '\0' },
+	.zo_pool = { 'o', 's', 'v', '\0' },
+	.zo_dir = { '/', 'u', 's', 'r', '\0' },
 	.zo_alt_ztest = { '\0' },
 	.zo_alt_libpath = { '\0' },
 	.zo_vdevs = 5,
@@ -97,8 +97,9 @@ static ztest_shared_opts_t ztest_opts = {
 	.zo_metaslab_gang_bang = 32 << 10
 };
 
+#if 0
 static nvlist_t *
-make_vdev_disk(char *path)
+make_vdev_disk(char *path, uint64_t pgid, uint64_t guid)
 {
 	nvlist_t *disk;
 
@@ -106,12 +107,14 @@ make_vdev_disk(char *path)
 	VERIFY(nvlist_add_string(disk, ZPOOL_CONFIG_TYPE, VDEV_TYPE_DISK) == 0);
 	VERIFY(nvlist_add_string(disk, ZPOOL_CONFIG_PATH, path) == 0);
 	VERIFY(nvlist_add_uint64(disk, ZPOOL_CONFIG_ASHIFT, SPA_MINBLOCKSHIFT) == 0);
+	VERIFY(nvlist_add_uint64(disk, ZPOOL_CONFIG_POOL_GUID, pgid) == 0);
+	VERIFY(nvlist_add_uint64(disk, ZPOOL_CONFIG_GUID, guid) == 0);
 
 	return (disk);
 }
 
 static nvlist_t *
-make_vdev_root(void)
+make_vdev_root(uint64_t pgid, uint64_t guid)
 {
 	nvlist_t *root, **child;
 	int c;
@@ -119,11 +122,13 @@ make_vdev_root(void)
 	ASSERT(t > 0);
 
 	child = calloc(1, sizeof (nvlist_t *));
-	child[0] = make_vdev_disk("/dev/vblk1");
+	child[0] = make_vdev_disk("/dev/vblk1", pgid, guid);
 	VERIFY(nvlist_add_uint64(child[0], ZPOOL_CONFIG_IS_LOG, 0) == 0);
 
 	VERIFY(nvlist_alloc(&root, NV_UNIQUE_NAME, 0) == 0);
 	VERIFY(nvlist_add_string(root, ZPOOL_CONFIG_TYPE, VDEV_TYPE_ROOT) == 0);
+	VERIFY(nvlist_add_uint64(root, ZPOOL_CONFIG_POOL_GUID, pgid) == 0);
+
 	VERIFY(nvlist_add_nvlist_array(root, ZPOOL_CONFIG_CHILDREN, child, 1) == 0);
 
 	nvlist_free(child[0]);
@@ -131,37 +136,149 @@ make_vdev_root(void)
 
 	return (root);
 }
+#endif
+
+int
+vdev_disk_read_rootlabel(char *devname, nvlist_t **config);
+
+int
+spa_config_parse(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent,
+    uint_t id, int atype);
+
+#if 0
+static void fix_type(nvlist_t *nv)
+{
+	nvlist_t **child;
+	uint_t c, children;
+	char *type;
+
+	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
+			&child, &children) == 0) {
+		for (c = 0; c < children; c++)
+			fix_type(child[c]);
+		return;
+	}
+
+	kprintf("fixing type\n");
+	VERIFY(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) == 0);
+	VERIFY(nvlist_add_string(nv, ZPOOL_CONFIG_TYPE, VDEV_TYPE_DISK) == 0);
+}
+#endif
 
 static nvlist_t *
-make_random_props()
+spa_generate_rootconf(char *devpath, uint64_t *guid)
 {
-	nvlist_t *props;
+	nvlist_t *config;
+	nvlist_t *nvtop, *nvroot, *children;
+	uint64_t pgid;
 
-	VERIFY(nvlist_alloc(&props, NV_UNIQUE_NAME, 0) == 0);
-	return (props);
+	if (vdev_disk_read_rootlabel(devpath, &config) != 0)
+		return (NULL);
+
+	/*
+	 * Add this top-level vdev to the child array.
+	 */
+	VERIFY(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
+	    &nvtop) == 0);
+
+//	fix_type(nvtop);
+
+	VERIFY(nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID,
+	    &pgid) == 0);
+	VERIFY(nvlist_lookup_uint64(config, ZPOOL_CONFIG_GUID, guid) == 0);
+
+	/*
+	 * Put this pool's top-level vdevs into a root vdev.
+	 */
+	VERIFY(nvlist_alloc(&nvroot, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+	VERIFY(nvlist_add_string(nvroot, ZPOOL_CONFIG_TYPE,
+	    VDEV_TYPE_ROOT) == 0);
+	VERIFY(nvlist_add_uint64(nvroot, ZPOOL_CONFIG_ID, 0ULL) == 0);
+	VERIFY(nvlist_add_uint64(nvroot, ZPOOL_CONFIG_GUID, pgid) == 0);
+	VERIFY(nvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+	    &nvtop, 1) == 0);
+
+	/*
+	 * Replace the existing vdev_tree with the new root vdev in
+	 * this pool's configuration (remove the old, add the new).
+	 */
+	VERIFY(nvlist_add_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, nvroot) == 0);
+	nvlist_free(nvroot);
+	return (config);
 }
 
 int main(int argc, char **argv)
 {
-	nvlist_t *nvroot, *props;
+	nvlist_t *config, *nvtop, *children;
 	spa_t *spa;
+	vdev_t *rvd;
+	uint64_t guid, txg;
+	char *pname;
+	int error;
 
 	(void) spa_destroy(ztest_opts.zo_pool);
+
+#if 0
+	VERIFY3U(0, ==, vdev_disk_read_rootlabel("/dev/vblk1", &config));
+	VERIFY3U(0, ==, nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID, &pgid));
+	VERIFY3U(0, ==, nvlist_lookup_uint64(config, ZPOOL_CONFIG_GUID, &guid));
+	VERIFY3U(0, ==, nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,, &nvtop));
 
 	/*
 	 * Create the storage pool.
 	 */
-	nvroot = make_vdev_root();
-	props = make_random_props();
-	for (int i = 0; i < SPA_FEATURES; i++) {
-		char buf[1024];
-		(void) snprintf(buf, sizeof (buf), "feature@%s",
-		    spa_feature_table[i].fi_uname);
-		VERIFY3U(0, ==, nvlist_add_uint64(props, buf, 0));
+	nvroot = make_vdev_root(pgid, guid);
+//	VERIFY3U(0, ==, spa_create(ztest_opts.zo_pool, nvroot, props,
+//	    NULL, NULL));
+
+#endif
+
+	config = spa_generate_rootconf("/dev/vblk1", &guid);
+
+	VERIFY(nvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME,
+	    &pname) == 0);
+	VERIFY(nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_TXG, &txg) == 0);
+
+	mutex_enter(&spa_namespace_lock);
+	if ((spa = spa_lookup(pname)) != NULL) {
+		/*
+		 * Remove the existing root pool from the namespace so that we
+		 * can replace it with the correct config we just read in.
+		 */
+		spa_remove(spa);
 	}
-	VERIFY3U(0, ==, spa_create(ztest_opts.zo_pool, nvroot, props,
-	    NULL, NULL));
-	nvlist_free(nvroot);
+
+	spa = spa_add(pname, config, NULL);
+	VERIFY3U(NULL, !=, spa);
+
+	spa->spa_is_root = B_TRUE;
+	spa->spa_import_flags = ZFS_IMPORT_VERBATIM;
+
+	/*
+	 * Build up a vdev tree based on the boot device's label config.
+	 */
+	VERIFY(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
+	    &nvtop) == 0);
+	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+	error = spa_config_parse(spa, &rvd, nvtop, NULL, 0,
+	    VDEV_ALLOC_ROOTPOOL);
+	spa_config_exit(spa, SCL_ALL, FTAG);
+	if (error) {
+		mutex_exit(&spa_namespace_lock);
+		nvlist_free(config);
+		kprintf("Can not parse the config for pool '%s'", pname);
+		return (error);
+	}
+
+	spa_history_log_version(spa, LOG_POOL_IMPORT);
+
+	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+	vdev_free(rvd);
+	spa_config_exit(spa, SCL_ALL, FTAG);
+	mutex_exit(&spa_namespace_lock);
+
+	nvlist_free(config);
+
 
 	VERIFY3U(0, ==, spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	spa_close(spa, FTAG);
