@@ -13,9 +13,9 @@ endef
 
 O=../build/external
 
-.PHONEY: all gcc boost jdk fontconfig freetype libjpeg
+.PHONEY: all gcc boost jdk fontconfig freetype libjpeg zlib
 
-all: gcc boost jdk fontconfig freetype libjpeg
+all: gcc boost jdk fontconfig freetype libjpeg zlib
 
 gcc:
 	mkdir -p $O
@@ -93,4 +93,11 @@ libjpeg:
 	cd $O/libjpeg && make
 	# can't use make install, since it will try to write to /usr
 	install -D $O/libjpeg/.libs/libjpeg.so.62 $O/bin/usr/lib64/libjpeg.so.62
+
+
+zlib:
+	$(call git-clone,$O/zlib,git://github.com/madler/zlib.git,v1.2.7)
+	cd $O/zlib && prefix=/usr CFLAGS='-O3 -mno-red-zone' ./configure
+	cd $O/zlib && make
+	install -D $O/zlib/libz.so.1 $O/bin/usr/lib64/libz.so.1
 
