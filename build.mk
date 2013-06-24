@@ -21,6 +21,8 @@ COMMON = $(autodepend) -g -Wall -Wno-pointer-arith -Werror -Wformat=0 \
 	$(arch-cflags) $(conf-opt) $(acpi-defines) $(tracing-flags) \
 	$(configuration) -nostdinc -D__OSV__
 
+COMMON += -mno-red-zone
+
 tracing-flags-0 =
 tracing-flags-1 = -finstrument-functions -finstrument-functions-exclude-file-list=c++,trace.cc,trace.hh,align.hh
 tracing-flags = $(tracing-flags-$(conf-tracing))
