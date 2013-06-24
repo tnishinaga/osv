@@ -19,9 +19,9 @@ endef
 
 O=../build/external
 
-.PHONEY: all gcc boost jdk fontconfig freetype libjpeg zlib
+.PHONEY: all gcc boost jdk fontconfig freetype libjpeg zlib expat
 
-all: gcc boost jdk fontconfig freetype libjpeg zlib
+all: gcc boost jdk fontconfig freetype libjpeg zlib expat
 
 gcc:
 	mkdir -p $O
@@ -107,3 +107,14 @@ zlib:
 	cd $O/zlib && make
 	install -D $O/zlib/libz.so.1 $O/bin/usr/lib64/libz.so.1
 
+
+expat:
+	$(call cvs-clone,$O/expat,:pserver:anonymous:@expat.cvs.sourceforge.net:/cvsroot/expat,expat,R_2_1_0)
+	rm -rf $O/expat/autom4te*.cache
+	cp /usr/share/libtool/config/install-sh $O/expat/conftools/
+	cd $O/expat && autoreconf -fiv
+	cd $O/expat; automake -a || true # ignore errors
+	cd $O/expat && CFLAGS='-mno-red-zone -fPIC' ./configure
+	cd $O/expat && make
+	install -D $O/expat/.libs/libexpat.so.1 $O/bin/usr/lib64/libexpat.so.1
+ 
