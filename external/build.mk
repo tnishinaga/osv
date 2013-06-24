@@ -11,6 +11,12 @@ define svn-clone =
 svn co -q $2/$3 $1
 endef
 
+# $(call cvs-clone dir url module tag)
+define cvs-clone
+mkdir -p $(dir $1)
+cd $(dir $1) && cvs -d $2 co -d $(notdir $1) -r $4 $3
+endef
+
 O=../build/external
 
 .PHONEY: all gcc boost jdk fontconfig freetype libjpeg zlib
