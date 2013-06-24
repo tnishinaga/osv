@@ -472,12 +472,20 @@ loader.elf: arch/x64/boot.o arch/x64/loader.ld loader.o runtime.o $(drivers) \
 dummy-shlib.so: dummy-shlib.o
 	$(call quiet, $(CXX) -nodefaultlibs -shared -o $@ $^, LD $@)
 
-jdkbase := $(shell find $(src)/external/openjdk.bin/usr/lib/jvm \
+jdkbase.bin= $(shell find $(src)/external/openjdk.bin/usr/lib/jvm \
                          -maxdepth 1 -type d -name 'java*')
+jdkbase-prebuild-0 = ../external/jdk/openjdk.build/j2sdk-image
+jdkbase-prebuild-1 := $(jdkbase.bin)
+jdkbase = $(jdkbase-prebuild-$(conf-use-prebuilt-libs))
 glibcbase = $(src)/external/glibc.bin
-gccbase = $(src)/external/gcc.bin
+gccbase-prebuild-0 = ../external/bin
+gccbase-prebuild-1 = $(src)/external/gcc.bin
+gccbase = $(gccbase-prebuild-$(conf-use-prebuilt-libs))
 miscbase = $(src)/external/misc.bin
-boost-lib-dir = $(miscbase)/usr/lib64
+miscbase.lib-prebuild-0 = ../external/bin
+miscbase.lib-prebuild-1 = $(miscbase)
+miscbase.lib = $(miscbase.lib-prebuild-$(conf-use-prebuilt-libs))
+boost-lib-dir = $(miscbase.lib)/usr/lib64
 boost-libs := $(boost-lib-dir)/libboost_program_options-mt.a
 
 bsd/%.o: COMMON += -D_KERNEL -DSMP 
@@ -485,8 +493,9 @@ bsd/%.o: COMMON += -D_KERNEL -DSMP
 usr.img: usr.manifest
 	$(call quiet, \
 		JDKBASE=$(jdkbase) \
+		JDKBASEBIN=$(jdkbase.bin) \
 		GCCBASE=$(gccbase) \
-		MISCBASE=$(miscbase) \
+		MISCBASE=$(miscbase.lib) \
 		BUILDDIR="${@}.tmp" \
 		IMAGE="$@" \
 		sh $(src)/scripts/mkromfs.sh, MKROMFS $@)
@@ -498,8 +507,9 @@ $(jni): INCLUDES += -I /usr/lib/jvm/java/include -I /usr/lib/jvm/java/include/li
 bootfs.bin: scripts/mkbootfs.py bootfs.manifest $(tests) $(tools) $(jni) \
 		tests/testrunner.so java/java.so java/RunJava.class
 	$(call quiet, $(src)/scripts/mkbootfs.py -o $@ -d $@.d -m $(src)/bootfs.manifest \
-		-D jdkbase=$(jdkbase) -D gccbase=$(gccbase) -D \
-		glibcbase=$(glibcbase) -D miscbase=$(miscbase), MKBOOTFS $@)
+		-D jdkbase=$(jdkbase) -D jdkbasebin=$(jdkbase.bin) -D gccbase=$(gccbase) -D \
+		glibcbase=$(glibcbase) -D miscbase=$(miscbase) \
+		-D miscbase.lib=$(miscbase.lib), MKBOOTFS $@)
 
 bootfs.o: bootfs.bin
 

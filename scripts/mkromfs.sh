@@ -12,6 +12,7 @@ mkdir -p ${BUILDDIR}
 sed \
     -e "s#GCCBASE#${GCCBASE}#" \
     -e "s#JDKBASE#${JDKBASE}#" \
+    -e "s#JDKBASEBIN#${JDKBASEBIN}#" \
     -e "s#MISCBASE#${MISCBASE}#" \
     < ../../usr.manifest | \
     while read to from; do
