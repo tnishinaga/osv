@@ -26,7 +26,7 @@ private:
      } __attribute__((__packed__)); /* 32 bytes */
 public:
     kvmclock();
-    virtual u64 time() __attribute__((no_instrument_function));
+    virtual s64 time() __attribute__((no_instrument_function));
 private:
     u64 wall_clock_boot();
     u64 system_time();
@@ -56,7 +56,7 @@ void kvmclock::setup_cpu()
     _smp_init = true;
 }
 
-u64 kvmclock::time()
+s64 kvmclock::time()
 {
     sched::preempt_disable();
     auto r = wall_clock_boot();
