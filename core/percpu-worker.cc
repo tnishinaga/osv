@@ -1,16 +1,22 @@
+#include <debug.hh>
 #include <sched.hh>
+#include <preempt-lock.hh>
 #include <osv/trace.hh>
 #include <osv/percpu.hh>
-
 #include <osv/percpu-worker.hh>
 
 TRACEPOINT(trace_pcpu_worker_started, "");
-TRACEPOINT(trace_pcpu_worker_invoke, "worker_item=%p", worker_item*);
-TRACEPOINT(trace_pcpu_worker_working, "num_items=%d", size_t);
+TRACEPOINT(trace_pcpu_worker_invoke, "item=%p", worker_item*);
+TRACEPOINT(trace_pcpu_worker_sheriff, "num_items=%d", size_t);
+TRACEPOINT(trace_pcpu_worker_signal, "item=%p, dest_cpu=%d, wait=%d", worker_item*, unsigned, bool);
+TRACEPOINT(trace_pcpu_worker_wait, "item=%p", worker_item*);
+TRACEPOINT(trace_pcpu_worker_end_wait, "item=%p", worker_item*);
+TRACEPOINT(trace_pcpu_worker_set_finished, "item=%p, src_cpu=%d, waiter=%p", worker_item*, unsigned, void*);
 
 sched::cpu::notifier workman::_cpu_notifier(workman::pcpu_init);
 
 PERCPU(std::atomic<bool>, workman::_duty);
+PERCPU(std::atomic<bool>, workman::_ready);
 PERCPU(sched::thread*, workman::_work_sheriff);
 
 extern char _percpu_workers_start[];
@@ -21,19 +27,45 @@ workman _workman;
 worker_item::worker_item(std::function<void ()> handler)
 {
     _handler = handler;
-    for (int i=0; i<64; i++) {
+    for (unsigned i=0; i < sched::max_cpus; i++) {
         _have_work[i].store(false, std::memory_order_relaxed);
+        _pcpu_waiters[i].store(nullptr, std::memory_order_relaxed);
     }
 }
 
-void worker_item::signal(sched::cpu* cpu)
+void worker_item::signal(sched::cpu* cpu, bool wait)
 {
+    // FIXME: all the threads are writing to the same place (destination)...
+    if (wait) {
+        _pcpu_waiters[cpu->id].store(sched::thread::current(), std::memory_order_release);
+    }
     _have_work[cpu->id].store(true, std::memory_order_release);
-    _workman.signal(cpu);
+    _workman.signal(cpu, this, wait);
 }
 
-void workman::signal(sched::cpu* cpu)
+bool worker_item::is_finished(sched::cpu* cpu)
 {
+    return (_pcpu_waiters[cpu->id].load(std::memory_order_acquire) == nullptr);
+}
+
+void worker_item::set_finished(sched::cpu* cpu)
+{
+    sched::thread* waiter = _pcpu_waiters[cpu->id].load(std::memory_order_acquire);
+    trace_pcpu_worker_set_finished(this, cpu->id, waiter);
+    if (waiter) {
+        _pcpu_waiters[cpu->id].store(nullptr, std::memory_order_release);
+        waiter->wake();
+    }
+}
+
+void workman::signal(sched::cpu* cpu, worker_item* item, bool wait)
+{
+    trace_pcpu_worker_signal(item, cpu->id, wait);
+
+    if (!(*_ready).load(std::memory_order_relaxed)) {
+        return;
+    }
+
     //
     // let the sheriff know that he have to do what he have to do.
     // we simply set _duty=true and wake the sheriff
@@ -49,16 +81,26 @@ void workman::signal(sched::cpu* cpu)
     // it in the sheriff thread.
     //
     (*(_duty.for_cpu(cpu))).store(true, std::memory_order_release);
-    (*_work_sheriff.for_cpu(cpu))->wake();
+    if (!wait) {
+        (*_work_sheriff.for_cpu(cpu))->wake();
+    } else {
+        trace_pcpu_worker_wait(item);
+        // Wait until the worker item finished
+        sched::thread::wait_until([&] { return item->is_finished(cpu); },
+            (*_work_sheriff.for_cpu(cpu)));
+        trace_pcpu_worker_end_wait(item);
+    }
+
 }
 
 void workman::call_of_duty(void)
 {
+    (*_ready).store(true, std::memory_order_relaxed);
     trace_pcpu_worker_started();
 
     while (true) {
         // Wait for duty
-        sched::thread::wait_until([] {
+        sched::thread::wait_until([&] {
             return ((*_duty).load(std::memory_order_acquire) == true);
         });
 
@@ -69,11 +111,12 @@ void workman::call_of_duty(void)
         // number of work items
         size_t num_work_items =
             (_percpu_workers_end-_percpu_workers_start) / sizeof(worker_item);
-        trace_pcpu_worker_working(num_work_items);
+        trace_pcpu_worker_sheriff(num_work_items);
 
         // FIXME: we loop on the list so this is O(N), if the amount of PCPU
         // workers grow above 10-20 than maybe it's better to re-think this
         // design.
+        std::lock_guard<preempt_lock_t> guard(preempt_lock);
         for (unsigned i=0; i < num_work_items; i++) {
             worker_item* it = reinterpret_cast<worker_item*>
                 (_percpu_workers_start + i * sizeof(worker_item));
@@ -84,6 +127,7 @@ void workman::call_of_duty(void)
                 (it->_have_work[cpu_id]).store(false, std::memory_order_release);
                 trace_pcpu_worker_invoke(it);
                 it->_handler();
+                it->set_finished(sched::cpus[cpu_id]);
             }
         }
     }
@@ -93,6 +137,7 @@ void workman::pcpu_init()
 {
     // initialize the sheriff thread
     (*_duty).store(false, std::memory_order_relaxed);
-    *_work_sheriff = new sched::thread([] { workman::call_of_duty(); });
+    *_work_sheriff = new sched::thread([] { workman::call_of_duty(); },
+        sched::thread::attr(sched::cpu::current()));
     (*_work_sheriff)->start();
 }

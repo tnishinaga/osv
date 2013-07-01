@@ -39,7 +39,7 @@ kvmclock::kvmclock()
 void kvmclock::setup_cpu()
 {
     memset(&*_sys, 0, sizeof(*_sys));
-    processor::wrmsr(msr::KVM_SYSTEM_TIME_NEW, mmu::virt_to_phys(&*_sys) | 1);
+    processor::wrmsr(msr::KVM_SYSTEM_TIME_NEW, (u64)(&*_sys) | 1);
     _smp_init = true;
 }
 

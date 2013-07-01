@@ -65,9 +65,10 @@ public:
     void push(const T& element)
     {
         if (!_ring.push(element)) {
-            _waiter.store(sched::thread::current(), std::memory_order_relaxed);
-            sched::thread::wait_until([&] { return (_ring.push(element)); });
-            _waiter.store(nullptr, std::memory_order_relaxed);
+            _waiter = sched::thread::current();
+            sched::thread::wait_until([&] { return (_waiter == nullptr); });
+            bool rc = _ring.push(element);
+            assert(rc);
         }
     }
 
@@ -75,9 +76,8 @@ public:
     {
         bool rc = _ring.pop(element);
         if (rc) {
-            sched::thread* waiter = _waiter.load(std::memory_order_relaxed);
-            if (waiter) {
-                waiter->wake();
+            if (_waiter) {
+                _waiter->wake_with([&] { _waiter = nullptr; });
             }
         }
 
@@ -86,7 +86,7 @@ public:
 
 private:
     ring_spsc<T, MaxSize> _ring;
-    std::atomic<sched::thread*> _waiter CACHELINE_ALIGNED;
+    sched::thread* _waiter CACHELINE_ALIGNED;
 };
 
 

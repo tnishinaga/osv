@@ -11,6 +11,7 @@ template <typename T>
 class percpu {
 public:
     constexpr percpu() {}
+    constexpr percpu(T& init_value): _var(init_value) {}
     T* operator->() {
         return for_cpu(sched::cpu::current());
     }

@@ -162,6 +162,8 @@ public:
     static void wait_until(mutex_t& mtx, Pred pred);
     template <class Pred>
     static void wait_until(mutex_t* mtx, Pred pred);
+    template <class Pred>
+    static void wait_until(Pred pred, thread* thread_to_wake);
     void wake();
     template <class Pred>
     inline void wake_with(Pred pred);
@@ -189,7 +191,7 @@ private:
     void resume_timers();
     static void on_thread_stack(thread* t);
     template <class Mutex, class Pred>
-    static void do_wait_until(Mutex& mtx, Pred pred);
+    static void do_wait_until(Mutex& mtx, Pred pred, thread* thread_to_wake = nullptr);
     struct dummy_lock {};
     friend void acquire(dummy_lock&) {}
     friend void release(dummy_lock&) {}
@@ -366,7 +368,7 @@ inline void release(mutex_t* mtx)
 
 template <class Mutex, class Pred>
 inline
-void thread::do_wait_until(Mutex& mtx, Pred pred)
+void thread::do_wait_until(Mutex& mtx, Pred pred, thread* thread_to_wake)
 {
     thread* me = current();
     while (true) {
@@ -376,10 +378,22 @@ void thread::do_wait_until(Mutex& mtx, Pred pred)
                 return;
             }
             release(mtx);
+            if (thread_to_wake) {
+                thread_to_wake->wake();
+            }
+
             me->wait();
         }
         acquire(mtx);
     }
+}
+
+template <class Pred>
+inline
+void thread::wait_until(Pred pred, thread* thread_to_wake)
+{
+    dummy_lock mtx;
+    do_wait_until(mtx, pred, thread_to_wake);
 }
 
 template <class Pred>

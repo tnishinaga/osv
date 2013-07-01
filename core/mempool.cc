@@ -14,6 +14,8 @@
 #include "mmu.hh"
 #include <lockfree/ring.hh>
 #include <osv/percpu-worker.hh>
+#include <osv/trace.hh>
+#include <preempt-lock.hh>
 
 extern bool smp_allocator;
 
@@ -60,14 +62,14 @@ static unsigned mempool_cpuid() {
 // 1st index -> dest cpu
 // 2nd index -> local cpu
 //
-wait_ring_spsc<void*, 32> pcpu_free_list[sched::max_cpus][sched::max_cpus];
+ring_spsc<void*, 128> pcpu_free_list[sched::max_cpus][sched::max_cpus];
 
 PCPU_WORKERITEM(free_worker, [] {
     unsigned cpu_id = mempool_cpuid();
     for (unsigned i=0; i < sched::max_cpus; i++) {
         void* obj = nullptr;
         while (pcpu_free_list[cpu_id][i].pop(obj)) {
-            free(obj);
+            memory::pool::from_object(obj)->free(obj);
         }
     }
 });
@@ -117,6 +119,9 @@ unsigned pool::object_cpu(free_object* object)
     return (to_header(object)->cpu);
 }
 
+TRACEPOINT(trace_pool_alloc, "this=%p, obj=%p", void*, void*);
+TRACEPOINT(trace_pool_free, "this=%p, obj=%p", void*, void*);
+
 void* pool::alloc()
 {
     if (_free.empty()) {
@@ -129,6 +134,7 @@ void* pool::alloc()
     if (!header->local_free) {
         _free.erase(header);
     }
+    trace_pool_alloc(this, obj);
     return obj;
 }
 
@@ -158,6 +164,7 @@ void pool::add_page()
 
 void pool::free(void* object)
 {
+    trace_pool_free(this, object);
     auto obj = static_cast<free_object*>(object);
     auto header = to_header(obj);
     if (!--header->nalloc) {
@@ -436,6 +443,50 @@ extern "C" {
     void free(void* object);
 }
 
+static inline void* _lockless_malloc(size_t size)
+{
+    void *ret = nullptr;
+    unsigned n = ilog2_roundup(size);
+
+    with_lock(preempt_lock, [&] {
+        unsigned cpu_id = memory::mempool_cpuid();
+        // FIXME: alloc() may take a mutex
+        ret = memory::malloc_pools[cpu_id][n].alloc();
+    });
+
+    return ret;
+}
+
+static inline void _lockless_free(void* object)
+{
+    unsigned c = 0;
+    unsigned obj_c = 0;
+    bool same_cpu = true;
+
+    with_lock(preempt_lock, [&] {
+        c = memory::mempool_cpuid();
+        obj_c = memory::pool::object_cpu(
+            reinterpret_cast<memory::free_object*>(object));
+        if (c != obj_c) {
+            auto &ring = memory::pcpu_free_list[obj_c][c];
+            bool rc = ring.push(object);
+            if (rc) {
+                memory::free_worker.signal(sched::cpus[obj_c], false);
+            } else {
+                memory::free_worker.signal(sched::cpus[obj_c], true);
+                bool rc2 = ring.push(object);
+                assert(rc2);
+            }
+            same_cpu = false;
+        }
+    });
+
+    // FIXME: thread may be migrated...
+    if (same_cpu) {
+        memory::pool::from_object(object)->free(object);
+    }
+}
+
 // malloc_large returns a page-aligned object as a marker that it is not
 // allocated from a pool.
 // FIXME: be less wasteful
@@ -445,15 +496,19 @@ static inline void* std_malloc(size_t size)
     if ((ssize_t)size < 0)
         return libc_error_ptr<void *>(ENOMEM);
     void *ret;
-    unsigned cpu_id = memory::mempool_cpuid();
     if (size <= memory::pool::max_object_size) {
         size = std::max(size, memory::pool::min_object_size);
-        unsigned n = ilog2_roundup(size);
-        ret = memory::malloc_pools[cpu_id][n].alloc();
+        if (smp_allocator) {
+            ret = _lockless_malloc(size);
+        } else {
+            unsigned n = ilog2_roundup(size);
+            ret = memory::malloc_pools[0][n].alloc();
+        }
     } else {
         ret = memory::malloc_large(size);
     }
-    memory::tracker_remember(ret, size);
+
+    // memory::tracker_remember(ret, size);
     return ret;
 }
 
@@ -500,20 +555,18 @@ static inline void std_free(void* object)
     if (!object) {
         return;
     }
-    memory::tracker_forget(object);
+
     if (reinterpret_cast<uintptr_t>(object) & (memory::page_size - 1)) {
-        unsigned c = memory::mempool_cpuid();
-        unsigned obj_c = memory::pool::object_cpu(
-            reinterpret_cast<memory::free_object*>(object));
-        if (obj_c != c) {
-            memory::pcpu_free_list[obj_c][c].push(object);
-            memory::free_worker.signal(sched::cpus[obj_c]);
-            return;
+        if (smp_allocator) {
+            _lockless_free(object);
+        } else {
+            memory::pool::from_object(object)->free(object);
         }
-        return memory::pool::from_object(object)->free(object);
     } else {
-        return memory::free_large(object);
+        memory::free_large(object);
     }
+
+    // memory::tracker_forget(object);
 }
 
 namespace dbg {
