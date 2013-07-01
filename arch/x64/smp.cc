@@ -92,8 +92,10 @@ sched::cpu* smp_initial_find_current_cpu()
     abort();
 }
 
+bool smp_allocator = false;
 void smp_launch()
 {
+    smp_allocator = true;
     auto boot_cpu = smp_initial_find_current_cpu();
     for (auto c : sched::cpus) {
         if (c == boot_cpu) {

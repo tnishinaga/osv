@@ -12,6 +12,10 @@
 #include "alloctracker.hh"
 #include <atomic>
 #include "mmu.hh"
+#include <lockfree/ring.hh>
+#include <osv/percpu-worker.hh>
+
+extern bool smp_allocator;
 
 namespace memory {
 
@@ -35,6 +39,38 @@ static inline void tracker_forget(void *addr)
         tracker.forget(addr);
     }
 }
+
+static unsigned mempool_cpuid() {
+    return (smp_allocator ? sched::cpu::current()->id: 0);
+}
+
+//
+// Since the small pools are managed per-cpu, malloc() always access the correct
+// pool on the same CPU that it was issued from, free() on the other hand, may
+// happen from different CPUs, so for each CPU, we maintain an array of
+// lockless spsc rings, making it a huge mpsc ring.
+//
+// A worker item is in charge of delivering the freed object to it's original
+// pool from the context of the CPU owner.
+//
+// FIXME: We use here the context sched::max_cpus as a temporary work around,
+// The PCPU module use malloc itself, so it cannot be used here.
+//
+// As much as the producer is concerned (cpu who did free()) -
+// 1st index -> dest cpu
+// 2nd index -> local cpu
+//
+wait_ring_spsc<void*, 32> pcpu_free_list[sched::max_cpus][sched::max_cpus];
+
+PCPU_WORKERITEM(free_worker, [] {
+    unsigned cpu_id = mempool_cpuid();
+    for (unsigned i=0; i < sched::max_cpus; i++) {
+        void* obj = nullptr;
+        while (pcpu_free_list[cpu_id][i].pop(obj)) {
+            free(obj);
+        }
+    }
+});
 
 // Memory allocation strategy
 //
@@ -67,18 +103,22 @@ pool::~pool()
     assert(_free.empty());
 }
 
-const size_t pool::max_object_size = page_size - sizeof(pool::page_header);
-const size_t pool::min_object_size = sizeof(pool::free_object);
+const size_t pool::max_object_size = page_size - sizeof(page_header);
+const size_t pool::min_object_size = sizeof(free_object);
 
-pool::page_header* pool::to_header(free_object* object)
+page_header* pool::to_header(free_object* object)
 {
     return reinterpret_cast<page_header*>(
                  reinterpret_cast<std::uintptr_t>(object) & ~(page_size - 1));
 }
 
+unsigned pool::object_cpu(free_object* object)
+{
+    return (to_header(object)->cpu);
+}
+
 void* pool::alloc()
 {
-    std::lock_guard<mutex> guard(_lock);
     if (_free.empty()) {
         add_page();
     }
@@ -104,6 +144,7 @@ void pool::add_page()
 {
     void* page = untracked_alloc_page();
     auto header = new (page) page_header;
+    header->cpu = mempool_cpuid();
     header->owner = this;
     header->nalloc = 0;
     header->local_free = nullptr;
@@ -117,7 +158,6 @@ void pool::add_page()
 
 void pool::free(void* object)
 {
-    std::lock_guard<mutex> guard(_lock);
     auto obj = static_cast<free_object*>(object);
     auto header = to_header(obj);
     if (!--header->nalloc) {
@@ -141,11 +181,14 @@ pool* pool::from_object(void* object)
     return header->owner;
 }
 
-malloc_pool malloc_pools[ilog2_roundup_constexpr(page_size) + 1]
+constexpr size_t nr_pools_per_cpu = ilog2_roundup_constexpr(page_size) + 1;
+
+malloc_pool malloc_pools[sched::max_cpus][nr_pools_per_cpu]
     __attribute__((init_priority(12000)));
 
+
 malloc_pool::malloc_pool()
-    : pool(compute_object_size(this - malloc_pools))
+    : pool(compute_object_size((this - &malloc_pools[0][0]) % nr_pools_per_cpu))
 {
 }
 
@@ -402,10 +445,11 @@ static inline void* std_malloc(size_t size)
     if ((ssize_t)size < 0)
         return libc_error_ptr<void *>(ENOMEM);
     void *ret;
+    unsigned cpu_id = memory::mempool_cpuid();
     if (size <= memory::pool::max_object_size) {
         size = std::max(size, memory::pool::min_object_size);
         unsigned n = ilog2_roundup(size);
-        ret = memory::malloc_pools[n].alloc();
+        ret = memory::malloc_pools[cpu_id][n].alloc();
     } else {
         ret = memory::malloc_large(size);
     }
@@ -458,6 +502,14 @@ static inline void std_free(void* object)
     }
     memory::tracker_forget(object);
     if (reinterpret_cast<uintptr_t>(object) & (memory::page_size - 1)) {
+        unsigned c = memory::mempool_cpuid();
+        unsigned obj_c = memory::pool::object_cpu(
+            reinterpret_cast<memory::free_object*>(object));
+        if (obj_c != c) {
+            memory::pcpu_free_list[obj_c][c].push(object);
+            memory::free_worker.signal(sched::cpus[obj_c]);
+            return;
+        }
         return memory::pool::from_object(object)->free(object);
     } else {
         return memory::free_large(object);
