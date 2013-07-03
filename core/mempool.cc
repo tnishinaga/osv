@@ -120,19 +120,27 @@ unsigned pool::object_cpu(free_object* object)
 }
 
 TRACEPOINT(trace_pool_alloc, "this=%p, obj=%p", void*, void*);
+TRACEPOINT(trace_pool_allocA, "this=%p", void*);
+TRACEPOINT(trace_pool_allocB, "this=%p", void*);
+TRACEPOINT(trace_pool_allocC, "this=%p", void*);
 TRACEPOINT(trace_pool_free, "this=%p, obj=%p", void*, void*);
 
 void* pool::alloc()
 {
+    trace_pool_allocA(this);
     if (_free.empty()) {
+        trace_pool_allocB(this);
         add_page();
     }
     auto header = _free.begin();
+    assert(header->owner == this);
     auto obj = header->local_free;
+    assert(obj != nullptr);
     ++header->nalloc;
     header->local_free = obj->next;
     if (!header->local_free) {
-        _free.erase(header);
+        trace_pool_allocC(this);
+        _free.erase(_free.iterator_to(*header));
     }
     trace_pool_alloc(this, obj);
     return obj;
@@ -165,8 +173,10 @@ void pool::add_page()
 void pool::free(void* object)
 {
     trace_pool_free(this, object);
+    assert(object != nullptr);
     auto obj = static_cast<free_object*>(object);
     auto header = to_header(obj);
+    assert(header->owner == this);
     if (!--header->nalloc) {
         if (header->local_free) {
             _free.erase(_free.iterator_to(*header));
@@ -469,14 +479,11 @@ static inline void _lockless_free(void* object)
             reinterpret_cast<memory::free_object*>(object));
         if (c != obj_c) {
             auto &ring = memory::pcpu_free_list[obj_c][c];
-            bool rc = ring.push(object);
-            if (rc) {
-                memory::free_worker.signal(sched::cpus[obj_c], false);
-            } else {
+            while (!ring.push(object)) {
                 memory::free_worker.signal(sched::cpus[obj_c], true);
-                bool rc2 = ring.push(object);
-                assert(rc2);
-            }
+            };
+
+            memory::free_worker.signal(sched::cpus[obj_c], false);
             same_cpu = false;
         }
     });

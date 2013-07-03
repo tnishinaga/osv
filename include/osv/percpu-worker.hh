@@ -4,6 +4,7 @@
 #include <list>
 #include <functional>
 #include <osv/percpu.hh>
+#include <osv/condvar.h>
 #include <sched.hh>
 
 #define PCPU_WORKERITEM(name, lambda) \
@@ -15,12 +16,12 @@ public:
     explicit worker_item(std::function<void ()> handler);
     void signal(sched::cpu* cpu, bool wait = false);
     void set_finished(sched::cpu* cpu);
-    bool is_finished(sched::cpu* cpu);
 private:
     // no clean way around this, we save a per-cpu byte table
     // that signals the worker_item should be invoked for a specified cpu_id
     std::atomic<bool> _have_work[sched::max_cpus];
-    std::atomic<sched::thread*> _pcpu_waiters[sched::max_cpus];
+    condvar _waiters[sched::max_cpus];
+    void wait_for(unsigned cpu_id, sched::thread* wait_thread);
 public:
     std::function<void ()> _handler;
     friend class workman;

@@ -11,7 +11,7 @@ TRACEPOINT(trace_pcpu_worker_sheriff, "num_items=%d", size_t);
 TRACEPOINT(trace_pcpu_worker_signal, "item=%p, dest_cpu=%d, wait=%d", worker_item*, unsigned, bool);
 TRACEPOINT(trace_pcpu_worker_wait, "item=%p", worker_item*);
 TRACEPOINT(trace_pcpu_worker_end_wait, "item=%p", worker_item*);
-TRACEPOINT(trace_pcpu_worker_set_finished, "item=%p, src_cpu=%d, waiter=%p", worker_item*, unsigned, void*);
+TRACEPOINT(trace_pcpu_worker_set_finished, "item=%p, dest_cpu=%d", worker_item*, unsigned);
 
 sched::cpu::notifier workman::_cpu_notifier(workman::pcpu_init);
 
@@ -29,33 +29,24 @@ worker_item::worker_item(std::function<void ()> handler)
     _handler = handler;
     for (unsigned i=0; i < sched::max_cpus; i++) {
         _have_work[i].store(false, std::memory_order_relaxed);
-        _pcpu_waiters[i].store(nullptr, std::memory_order_relaxed);
     }
 }
 
 void worker_item::signal(sched::cpu* cpu, bool wait)
 {
-    // FIXME: all the threads are writing to the same place (destination)...
-    if (wait) {
-        _pcpu_waiters[cpu->id].store(sched::thread::current(), std::memory_order_release);
-    }
     _have_work[cpu->id].store(true, std::memory_order_release);
     _workman.signal(cpu, this, wait);
 }
 
-bool worker_item::is_finished(sched::cpu* cpu)
-{
-    return (_pcpu_waiters[cpu->id].load(std::memory_order_acquire) == nullptr);
-}
-
 void worker_item::set_finished(sched::cpu* cpu)
 {
-    sched::thread* waiter = _pcpu_waiters[cpu->id].load(std::memory_order_acquire);
-    trace_pcpu_worker_set_finished(this, cpu->id, waiter);
-    if (waiter) {
-        _pcpu_waiters[cpu->id].store(nullptr, std::memory_order_release);
-        waiter->wake();
-    }
+    trace_pcpu_worker_set_finished(this, cpu->id);
+    _waiters[cpu->id].wake_all();
+}
+
+void worker_item::wait_for(unsigned cpu_id, sched::thread* wait_thread)
+{
+    _waiters[cpu_id].wait(nullptr, nullptr, wait_thread);
 }
 
 void workman::signal(sched::cpu* cpu, worker_item* item, bool wait)
@@ -86,8 +77,7 @@ void workman::signal(sched::cpu* cpu, worker_item* item, bool wait)
     } else {
         trace_pcpu_worker_wait(item);
         // Wait until the worker item finished
-        sched::thread::wait_until([&] { return item->is_finished(cpu); },
-            (*_work_sheriff.for_cpu(cpu)));
+        item->wait_for(cpu->id, (*_work_sheriff.for_cpu(cpu)));
         trace_pcpu_worker_end_wait(item);
     }
 
