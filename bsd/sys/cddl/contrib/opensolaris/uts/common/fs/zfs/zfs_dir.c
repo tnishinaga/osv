@@ -697,6 +697,7 @@ out:
 	if (xzp)
 		VN_RELE(ZTOV(xzp));
 }
+#endif
 
 static uint64_t
 zfs_dirent(znode_t *zp, uint64_t mode)
@@ -777,11 +778,14 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 	    8, 1, &value, tx);
 	ASSERT(error == 0);
 
+#ifndef __OSV__
 	dnlc_update(ZTOV(dzp), dl->dl_name, vp);
+#endif
 
 	return (0);
 }
 
+#ifdef NOTYET
 static int
 zfs_dropname(zfs_dirlock_t *dl, znode_t *zp, znode_t *dzp, dmu_tx_t *tx,
     int flag)
