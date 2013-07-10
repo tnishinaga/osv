@@ -471,6 +471,7 @@ zfs_unlinked_add(znode_t *zp, dmu_tx_t *tx)
 	VERIFY3U(0, ==,
 	    zap_add_int(zfsvfs->z_os, zfsvfs->z_unlinkedobj, zp->z_id, tx));
 }
+#endif
 
 /*
  * Clean up any znodes that had no links when we either crashed or
@@ -519,11 +520,12 @@ zfs_unlinked_drain(zfsvfs_t *zfsvfs)
 			continue;
 
 		zp->z_unlinked = B_TRUE;
-		VN_RELE(ZTOV(zp));
+		zfs_zinactive(zp);
 	}
 	zap_cursor_fini(&zc);
 }
 
+#ifdef NOTYET
 /*
  * Delete the entire contents of a directory.  Return a count
  * of the number of entries that could not be deleted. If we encounter
