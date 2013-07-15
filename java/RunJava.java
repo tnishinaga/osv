@@ -30,6 +30,9 @@ public class RunJava {
                 }
                 runJar(args[i+1], java.util.Arrays.copyOfRange(args,  i+2, args.length));
                 return;
+            } else if (args[i].startsWith("-XX")) {
+                System.out.println("Ignoring option " + args[i]);
+                continue;
             } else if (args[i].equals("-classpath") || args[i].equals("-cp")) {
                 if (i+1 >= args.length) {
                     System.err.println("RunJava: Missing parameter after '"+args[i]+"'");
