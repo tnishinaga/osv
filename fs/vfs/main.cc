@@ -744,8 +744,6 @@ statvfs(const char *pathname, struct statvfs *buf)
 		return -1;
 	return statfs_to_statvfs(buf, &st);
 }
-int statvfs64(const char *, struct statvfs64 *) __attribute__((weak, alias("statvfs")));
-
 int
 fstatvfs(int fd, struct statvfs *buf)
 {
@@ -755,8 +753,10 @@ fstatvfs(int fd, struct statvfs *buf)
 		return -1;
 	return statfs_to_statvfs(buf, &st);
 }
-int fstatvfs64(int, struct statvfs64 *) __attribute__((weak, alias("statvfs")));
-
+extern "C" {
+    int statvfs64(const char *, struct statvfs64 *) __attribute__((weak, alias("statvfs")));
+    int fstatvfs64(int, struct statvfs64 *) __attribute__((weak, alias("fstatvfs")));
+};
 
 char *getcwd(char *path, size_t size)
 {
