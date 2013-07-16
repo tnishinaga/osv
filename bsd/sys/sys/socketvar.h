@@ -122,6 +122,7 @@ struct socket {
 	/* FIXME: this is done for poll,
 	 * make sure there's only 1 ref to a fp */
 	struct file* fp;
+	int netperf;
 };
 
 /*

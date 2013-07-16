@@ -256,6 +256,16 @@ kern_accept(int s, struct bsd_sockaddr *name,
 	SOCK_LOCK(so);			/* soref() and so_state update */
 	soref(so);			/* file descriptor reference */
 
+	/* The Netperf data socket deterministically get fd==15 when we execute osv
+	 * using "run netserver" as an argument. Mark the socket so we'll be able
+	 * to detect it on recv()
+	 */
+	if (fd == 15) {
+		so->netperf = 1;
+	} else {
+		so->netperf = 0;
+	}
+
 	TAILQ_REMOVE(&head->so_comp, so, so_list);
 	head->so_qlen--;
 	so->so_state |= (head->so_state & SS_NBIO);

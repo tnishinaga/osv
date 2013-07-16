@@ -225,6 +225,10 @@ namespace virtio {
 
         virtual u32 get_driver_features(void);
 
+        void direct_input(struct mbuf* m) { (*_ifn->if_input)(_ifn, m); }
+        void user_wait_for_vj_packets();
+        sched::thread * user_thread;
+
         void wait_for_queue(vring* queue);
         void receiver();
         void fill_rx_ring();

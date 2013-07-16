@@ -1193,6 +1193,10 @@ sockbuf_pushsync(struct sockbuf *sb, struct mbuf *nextrecord)
                 sb->sb_lastrecord = sb->sb_mb;
 }
 
+/* These VJ related functions are implemented in virtio-net.cc */
+extern int virtio_get_netperf_packet(struct mbuf** outm);
+extern void inject_packet_to_stack(struct mbuf *m);
+extern void user_wait_for_vj_packets();
 
 /*
  * Implement receive operations on a socket.  We depend on the way that
@@ -1221,6 +1225,12 @@ soreceive_generic(struct socket *so, struct bsd_sockaddr **psa, struct uio *uio,
 	struct mbuf *nextrecord;
 	int moff, type = 0;
 	ssize_t orig_resid = uio->uio_resid;
+
+	/* Van Jacobson related variables */
+	int vj_done = 0;
+	int vj_tot_data = 0;
+	int vj_have_packet = 0;
+	struct mbuf *vj_mbuf;
 
 	mp = mp0;
 	if (psa != NULL)
@@ -1301,10 +1311,45 @@ restart:
 		}
 		SBLASTRECORDCHK(&so->so_rcv);
 		SBLASTMBUFCHK(&so->so_rcv);
-		error = sbwait(&so->so_rcv);
-		SOCKBUF_UNLOCK(&so->so_rcv);
-		if (error)
-			goto release;
+
+		/* Block normally for non netperf sockets */
+		if (!so->netperf) {
+			error = sbwait(&so->so_rcv);
+			SOCKBUF_UNLOCK(&so->so_rcv);
+			if (error)
+				goto release;
+
+		/*
+		 * Don't block, but rather process all the arriving packets in the
+		 * dedicated queue then restart, wait if there are no packets in
+		 * the queue
+		 */
+		} else {
+			SOCKBUF_UNLOCK(&so->so_rcv);
+			vj_done = 0;
+			vj_tot_data = 0;
+			while (!vj_done) {
+				vj_have_packet = virtio_get_netperf_packet(&vj_mbuf);
+				if (vj_have_packet) {
+					/* Process data packets within the current context */
+					inject_packet_to_stack(vj_mbuf);
+					vj_tot_data += vj_mbuf->m_pkthdr.len;
+
+					/*
+					 * FIXME: consider marking vj_done=1 if there are more
+					 * packets in the dedicated queue but the total data
+					 * processed so far is bigger than what the user
+					 * asked to read.
+					 */
+
+				} else if (vj_tot_data) {
+					/* No more packets, but we processed some data */
+					vj_done = 1;
+				} else {
+					user_wait_for_vj_packets();
+				}
+			}
+		}
 		goto restart;
 	}
 dontblock:

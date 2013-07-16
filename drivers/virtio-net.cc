@@ -27,7 +27,11 @@
 #include <osv/device.h>
 #include <osv/ioctl.h>
 #include <bsd/sys/net/ethernet.h>
+#include <bsd/sys/netinet/in.h>
+#include <bsd/sys/netinet/tcp.h>
+#include <bsd/sys/netinet/ip.h>
 #include <bsd/sys/net/if_types.h>
+#include <lockfree/ring.hh>
 
 TRACEPOINT(trace_virtio_net_rx_packet, "if=%d, len=%d", int, int);
 TRACEPOINT(trace_virtio_net_rx_wake, "");
@@ -38,6 +42,46 @@ TRACEPOINT(trace_virtio_net_tx_wake, "");
 TRACEPOINT(trace_virtio_net_tx_failed_add_buf, "if=%d", int);
 TRACEPOINT(trace_virtio_net_tx_no_space_calling_gc, "if=%d", int);
 using namespace memory;
+
+ring_spsc<mbuf *, 65536> global_mbuf_ring_of_doom;
+
+//
+// returns a netperf packet if the queue is not empty
+// used by the netperf user thread in recv()
+//
+extern "C" int virtio_get_netperf_packet(struct mbuf** outm)
+{
+    struct mbuf *res = nullptr;
+    bool rc = global_mbuf_ring_of_doom.pop(res);
+
+    if (rc) {
+        *outm = res;
+        return 1;
+    }
+
+    return 0;
+}
+
+class virtio_net;
+//
+// We need a pointer to the virtio-net driver, especially so the user can call
+// inject_packet_to_stack() and user_wait_for_vj_packets()
+//
+virtio::virtio_net * global_virtio_net_iface = nullptr;
+
+// Input a packet from the stack, called within the context of the netperf
+// user thread
+extern "C" void inject_packet_to_stack(struct mbuf *m)
+{
+    global_virtio_net_iface->direct_input(m);
+}
+
+// Wait for packets, if we don't have data on recv()
+extern "C" void user_wait_for_vj_packets()
+{
+    global_virtio_net_iface->user_wait_for_vj_packets();
+}
+
 
 // TODO list
 // irq thread affinity and tx affinity
@@ -121,6 +165,8 @@ namespace virtio {
         _rx_queue = get_virt_queue(0);
         _tx_queue = get_virt_queue(1);
 
+        global_virtio_net_iface = this;
+
         std::stringstream ss;
         ss << "virtio-net";
 
@@ -199,7 +245,20 @@ namespace virtio {
         return true;
     }
 
+    void virtio_net::user_wait_for_vj_packets()
+    {
+        user_thread = sched::thread::current();
+        sched::thread::wait_until([&] {
+            return (user_thread == nullptr);
+        });
+    }
+
     void virtio_net::receiver() {
+
+        int tcp_syn_count = 0;
+        u_short tcp_src_port = 0;
+        int connection_made = 0;
+        int tcp_step = 0; // SYN, SYN|ACK, ACK
 
         while (1) {
 
@@ -265,7 +324,71 @@ namespace virtio {
                 m_adj(m_head, offset);
 
                 _ifn->if_ipackets++;
-                (*_ifn->if_input)(_ifn, m_head);
+
+                //
+                // Van Jacobson Hack.
+                //
+                // We want to queue netperf data packets so the user thread will
+                // be able to process them within its context. this
+                // "classification" code catches the second TCP SYN packet,
+                // the first one is used for the netperf control stream.
+                //
+                // Moreover, since we can't process any netperf data stream
+                // packets before the user thread created the socket and has
+                // done recv(), we need to process the first and third,
+                // SYN and ACK in the TCP handshake as we would normally.
+                //
+                // Only data packets are queued.
+                //
+                u_char* pkt = mtod(m_head, u_char *);
+                struct ip* ip = (struct ip *)(pkt+14);
+                struct tcphdr* tcp = (struct tcphdr *)(pkt+14+20);
+
+                // kprintf("ip_p=%d, tcp_flags=%d\n", ip->ip_p, tcp->th_flags);
+
+                //
+                // We save the Source TCP Port of the second SYN packet and we
+                // do the filtering based on this value (as it belongs to the
+                // netperf data stream).
+                //
+                if (tcp_syn_count < 2) {
+                    if ((ip->ip_p == 6) && (tcp->th_flags & TH_SYN)) {
+                        tcp_syn_count++;
+                        if (tcp_syn_count == 2) {
+                            tcp_src_port = tcp->th_sport;
+                        }
+                    }
+                }
+
+                // Connection is made only after the last ACK of the TCP handshake
+                if (ip->ip_p == 6) {
+                    if (tcp_src_port == tcp->th_sport) {
+                        tcp_step++;
+                        if (tcp_step == 3) {
+                            connection_made = 1;
+                        }
+
+                    }
+                }
+
+                // Connection has been made and the packet belong to the netperf
+                // data stream, queue it for the user thread processing
+                if ((ip->ip_p == 6) && (tcp_src_port == tcp->th_sport) && (connection_made)) {
+                    bool pushed = global_mbuf_ring_of_doom.push(m_head);
+                    if (!pushed) {
+                        // FIXME: drop packet
+                        abort();
+                    }
+
+                    if (user_thread) {
+                        sched::thread * t = user_thread;
+                        user_thread = nullptr;
+                        t->wake();
+                    }
+                } else {
+                    // Process packets normally
+                    (*_ifn->if_input)(_ifn, m_head);
+                }
 
                 trace_virtio_net_rx_packet(_ifn->if_index, len);
 
