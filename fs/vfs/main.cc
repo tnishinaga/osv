@@ -1071,6 +1071,11 @@ out_errno:
 	return -1;
 }
 
+extern "C" int ftruncate64(int fd, off_t length)
+{
+    return ftruncate(fd, length);
+}
+
 ssize_t readlink(const char *pathname, char *buf, size_t bufsize)
 {
 	struct task *t = main_task;
