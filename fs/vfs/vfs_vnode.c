@@ -377,6 +377,7 @@ vn_stat(struct vnode *vp, struct stat *st)
 	st->st_blocks = vp->v_size / S_BLKSIZE;
 	st->st_uid = 0;
 	st->st_gid = 0;
+	st->st_mtime = 1;
 	if (vp->v_type == VCHR || vp->v_type == VBLK)
 		st->st_rdev = (dev_t)vp->v_data;
 
