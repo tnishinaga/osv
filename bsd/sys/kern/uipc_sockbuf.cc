@@ -31,7 +31,9 @@
 
 #include <sys/cdefs.h>
 
+#include <vj.hh>
 #include <osv/poll.h>
+#include <errno.h>
 
 #include <bsd/porting/netport.h>
 #include <bsd/porting/rwlock.h>
@@ -43,6 +45,8 @@
 #include <bsd/sys/sys/socket.h>
 #include <bsd/sys/sys/socketvar.h>
 #include <bsd/sys/sys/libkern.h>
+#include <bsd/sys/net/ethernet.h>
+
 
 /*
  * Function pointer set by the AIO routines so that the socket buffer code
@@ -62,6 +66,50 @@ static	u_long sb_efficiency = 8;	/* parameter for sbreserve() */
 
 static void	sbdrop_internal(struct sockbuf *sb, int len);
 static void	sbflush_internal(struct sockbuf *sb);
+
+/*
+ * Process any pending packets in the Van Jacobson ring for a specific socket,
+ * this is being invoked in the context of the user thread and uses the
+ * private socket api as entry points for processing
+ */
+int vj_process_ring(struct socket * so)
+{
+	struct mbuf *vj_mbuf = NULL;
+	int error = 0;
+	if (!so->vj_socket) {
+		return 0;
+	}
+
+	SOCK_LOCK(so);
+	so->vj_processing = 1;
+
+	// get packet (FIXME: locks?)
+	vj_mbuf = vj_ringbuf_pop(so->so_rcv.sb_ring);
+	while (vj_mbuf) {
+		/*
+		 * Process data packets within the current context
+		 * Directly inject packet to ethernet layer
+		 */
+		SOCK_UNLOCK(so);
+		ether_input_internal(vj_mbuf->m_pkthdr.rcvif, vj_mbuf);
+		SOCK_LOCK(so);
+		if (so->vj_mark_dead) {
+			so->vj_processing = 0;
+			vj_mbuf = NULL;
+			sodealloc(so);
+			error = EBADF;
+		} else {
+			vj_mbuf = vj_ringbuf_pop(so->so_rcv.sb_ring);
+		}
+	}
+
+	if (error == 0) {
+		so->vj_processing = 0;
+		SOCK_UNLOCK(so);
+	}
+
+	return error;
+}
 
 /*
  * Socantsendmore indicates that no more data will be sent on the socket; it
@@ -110,6 +158,23 @@ socantrcvmore(struct socket *so)
 	SOCKBUF_LOCK(&so->so_rcv);
 	socantrcvmore_locked(so);
 	mtx_assert(SOCKBUF_MTX(&so->so_rcv), MA_NOTOWNED);
+}
+
+int
+sbwait_rcv(struct socket *so)
+{
+	/* Block normally for non vj sockets */
+	if (!so->vj_socket) {
+		return sbwait(&so->so_rcv);
+	}
+
+	/* Wait for packets arriving to the Van Jacobson ring */
+	SOCKBUF_UNLOCK(&so->so_rcv);
+	vj_wait(so->so_rcv.sb_ring);
+	int error = vj_process_ring(so);
+	assert(error == 0);
+	SOCKBUF_LOCK(&so->so_rcv);
+	return 0;
 }
 
 /*
@@ -256,7 +321,7 @@ soreserve(struct socket *so, u_long sndcc, u_long rcvcc)
 		so->so_rcv.sb_lowat = 1;
 	if (so->so_snd.sb_lowat == 0)
 		so->so_snd.sb_lowat = MCLBYTES;
-	if (so->so_snd.sb_lowat > so->so_snd.sb_hiwat)
+	if (so->so_snd.sb_lowat > (int)so->so_snd.sb_hiwat)
 		so->so_snd.sb_lowat = so->so_snd.sb_hiwat;
 	SOCKBUF_UNLOCK(&so->so_rcv);
 	SOCKBUF_UNLOCK(&so->so_snd);
@@ -310,7 +375,7 @@ sbreserve_locked(struct sockbuf *sb, u_long cc, struct socket *so,
 	sb->sb_hiwat = cc;
 
     sb->sb_mbmax = bsd_min(cc * sb_efficiency, sb_max);
-    if (sb->sb_lowat > sb->sb_hiwat)
+    if (sb->sb_lowat > (int)sb->sb_hiwat)
         sb->sb_lowat = sb->sb_hiwat;
     return (1);
 }
@@ -939,7 +1004,7 @@ sbsndptr(struct sockbuf *sb, u_int off, u_int len, u_int *moff)
 
 	/* Advance by len to be as close as possible for the next transmit. */
 	for (off = off - sb->sb_sndptroff + len - 1;
-	     off > 0 && m != NULL && off >= m->m_len;
+	     off > 0 && m != NULL && off >= (u_int)m->m_len;
 	     m = m->m_next) {
 		sb->sb_sndptroff += m->m_len;
 		off -= m->m_len;
@@ -1006,7 +1071,7 @@ sbcreatecontrol(caddr_t p, int size, int type, int level)
 		return ((struct mbuf *) NULL);
 	cp = mtod(m, struct cmsghdr *);
 	m->m_len = 0;
-	KASSERT(CMSG_SPACE((u_int)size) <= M_TRAILINGSPACE(m),
+	KASSERT(CMSG_SPACE((u_int)size) <= (u_int)M_TRAILINGSPACE(m),
 	    ("sbcreatecontrol: short mbuf"));
 	if (p != NULL)
 		(void)memcpy(CMSG_DATA(cp), p, size);

@@ -157,12 +157,15 @@ int poll_wake(struct file* fp, int events)
      * Wake each and every one.
      */
     TAILQ_FOREACH(pl, &fp->f_poll_list, _link) {
-        if (pl->_events & events) {
+        if ((pl->_events & events) || (events == POLL_VJ)) {
             mtx_lock(&pl->_req->_awake_mutex);
             pl->_req->_awake = true;
             mtx_unlock(&pl->_req->_awake_mutex);
             wakeup((void*)pl->_req);
         }
+
+        // FIXME: in Van Jacobson the use-case of more than one polling thread
+        // is not being handled yet
     }
 
     FD_UNLOCK(fp);
@@ -305,6 +308,9 @@ int poll(struct pollfd _pfd[], nfds_t _nfds, int _timeout)
         timeout = p._timeout*(hz/1000L);
     }
 
+again:
+    s64 t1 = nanotime();
+
     /* Block  */
     mtx_lock(&p._awake_mutex);
     if (p._awake) {
@@ -315,8 +321,16 @@ int poll(struct pollfd _pfd[], nfds_t _nfds, int _timeout)
         error = msleep((void *)&p, &p._awake_mutex, 0, "poll", timeout);
     }
     mtx_unlock(&p._awake_mutex);
+
     if (error != EWOULDBLOCK) {
         nr_events = poll_scan(p._pfd, _nfds);
+        if (nr_events == 0) {
+            if (timeout != 0) {
+                s64 t2 = nanotime();
+                timeout = bsd_max(timeout - ns2ticks(t2 - t1), 0);
+            }
+            goto again;
+        }
     } else {
         nr_events = 0;
     }

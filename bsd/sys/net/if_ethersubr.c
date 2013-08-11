@@ -32,6 +32,7 @@
 
 #include <assert.h>
 
+#include <vj.hh>
 #include <osv/ioctl.h>
 
 #include <bsd/porting/netport.h>
@@ -503,7 +504,7 @@ ether_ipfw_chk(struct mbuf **m0, struct ifnet *dst, int shared)
  * Process a received Ethernet packet; the packet is in the
  * mbuf chain m with the ethernet header at the front.
  */
-static void
+void
 ether_input_internal(struct ifnet *ifp, struct mbuf *m)
 {
 	struct ether_header *eh;
@@ -692,28 +693,8 @@ ether_input_internal(struct ifnet *ifp, struct mbuf *m)
 	CURVNET_RESTORE();
 }
 
-/*
- * Ethernet input dispatch; by default, direct dispatch here regardless of
- * global configuration.
- */
-static void
-ether_nh_input(struct mbuf *m)
-{
-
-	ether_input_internal(m->m_pkthdr.rcvif, m);
-}
-
-static struct netisr_handler	ether_nh = {
-	.nh_name = "ether",
-	.nh_handler = ether_nh_input,
-	.nh_proto = NETISR_ETHER,
-	.nh_policy = NETISR_POLICY_SOURCE,
-	.nh_dispatch = NETISR_DISPATCH_DIRECT,
-};
-
 void ether_init(void *arg)
 {
-	netisr_register(&ether_nh);
 	/* call if_register_com_alloc(), don't act as a module */
 	if_register_com_alloc(IFT_ETHER, ether_alloc, ether_free);
 }
@@ -729,7 +710,9 @@ ether_input(struct ifnet *ifp, struct mbuf *m)
 	 */
 	KASSERT(m->m_pkthdr.rcvif == ifp, ("%s: ifnet mismatch", __func__));
 
-	netisr_dispatch(NETISR_ETHER, m);
+	if (!vj_try_deliver(ifp->classifier, m)) {
+		ether_input_internal(ifp, m);
+	}
 }
 
 /*
@@ -894,6 +877,9 @@ ether_ifattach(struct ifnet *ifp, const u_int8_t *lla)
 	if (ifp->if_baudrate == 0)
 		ifp->if_baudrate = IF_Mbps(10);		/* just a default */
 	ifp->if_broadcastaddr = etherbroadcastaddr;
+
+	/* Van Jacobson classifer for interface */
+	ifp->classifier = vj_classifier_create();
 
 	ifa = ifp->if_addr;
 	KASSERT(ifa != NULL, ("%s: no lladdr!\n", __func__));

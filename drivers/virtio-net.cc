@@ -26,6 +26,7 @@
 
 #include <osv/device.h>
 #include <osv/ioctl.h>
+#include <bsd/sys/sys/param.h>
 #include <bsd/sys/net/ethernet.h>
 #include <bsd/sys/net/if_types.h>
 #include <bsd/sys/sys/param.h>
@@ -38,6 +39,7 @@
 #include <bsd/sys/netinet/tcp.h>
 
 TRACEPOINT(trace_virtio_net_rx_packet, "if=%d, len=%d", int, int);
+TRACEPOINT(trace_virtio_net_rx_packet_tcp, "if=%d, len=%d, src_ip=%d, dst_ip=%d, tcp_flags=%d, src_port=%d, dst_port=%d", int, int, unsigned, unsigned, unsigned, unsigned, unsigned);
 TRACEPOINT(trace_virtio_net_rx_wake, "");
 TRACEPOINT(trace_virtio_net_fill_rx_ring, "if=%d", int);
 TRACEPOINT(trace_virtio_net_fill_rx_ring_added, "if=%d, added=%d", int, int);
@@ -362,10 +364,21 @@ namespace virtio {
                     rx_csum(m_head, &mhdr.hdr);
                 }
 
+                trace_virtio_net_rx_packet(_ifn->if_index, len);
+
+                u8* pkt = mtod(m_head, u8*);
+                struct ip* pkt_ip = reinterpret_cast<struct ip*>(pkt + 14);
+                struct tcphdr* pkt_tcp = reinterpret_cast<struct tcphdr*>(pkt + 14 + (pkt_ip->ip_hl<<2));
+
+                if ((pkt_ip->ip_p == 6) && ((unsigned)m_head->m_len >= 14 + (unsigned)(pkt_ip->ip_hl<<2) + sizeof(tcphdr))) {
+                    if (m_head->m_len < 200) {
+                        trace_virtio_net_rx_packet_tcp(_ifn->if_index, len, pkt_ip->ip_src.s_addr, pkt_ip->ip_dst.s_addr, pkt_tcp->th_flags, pkt_tcp->th_sport, pkt_tcp->th_dport);
+                    }
+                }
+
                 _ifn->if_ipackets++;
                 (*_ifn->if_input)(_ifn, m_head);
 
-                trace_virtio_net_rx_packet(_ifn->if_index, len);
 
                 // The interface may have been stopped while we were
                 // passing the packet up the network stack.
