@@ -70,7 +70,7 @@ def start_osv():
         stty_save()
 
         # Launch qemu
-        subprocess.call(["qemu-system-x86_64"] + args)
+        subprocess.call(["kvm"] + args)
     except:
         pass
     finally:
