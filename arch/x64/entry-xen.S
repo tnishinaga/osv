@@ -46,3 +46,11 @@ xen_start:
     mov %rsi, %rdi
     call xen_init
     jmp start64
+
+.global xen_hypercall_5
+xen_hypercall_5:
+    // rdi, rsi, rdx, r8 already loaded correctly
+    mov %rcx, %r10
+    shl $5, %r9 // type
+    lea hypercall_page(%r9), %r9
+    jmp *%r9

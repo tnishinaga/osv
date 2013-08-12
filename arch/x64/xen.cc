@@ -16,6 +16,9 @@ struct start_info* xen_start_info __attribute__((section(".data")));
 
 namespace xen {
 
+extern "C" { ulong xen_hypercall_5(ulong a1, ulong a2, ulong a3, ulong a4, ulong a5, unsigned type); }
+
+
 // we only have asm constraints for the first three hypercall args,
 // so we only inline hypercalls with <= 3 args.  The others are out-of-line,
 // implemented in normal asm.
@@ -42,6 +45,17 @@ inline ulong hypercall(unsigned type, ulong a1)
 inline ulong hypercall(unsigned type, ulong a1, ulong a2)
 {
     return hypercall(type, a1, a2, 0);
+}
+
+inline ulong hypercall(unsigned type, ulong a1, ulong a2, ulong a3, ulong a4, ulong a5)
+{
+    // swap argument order to get the first three register pre-loaded
+    return xen_hypercall_5(a1, a2, a3, a4, a5, type);
+}
+
+inline ulong hypercall(unsigned type, ulong a1, ulong a2, ulong a3, ulong a4)
+{
+    return hypercall(type, a1, a2, a3, a4, 0);
 }
 
 // some template magic to auto-cast pointers to ulongs in hypercall().
