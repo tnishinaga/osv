@@ -75,7 +75,6 @@ struct vnode {
 	off_t		v_size;		/* file size */
 	mutex_t		v_lock;		/* lock for this vnode */
 	int		v_nrlocks;	/* lock count (for debug) */
-	char		*v_path;	/* pointer to path in fs */
 	void		*v_data;	/* private data for fs */
 };
 
@@ -189,7 +188,7 @@ void	 vn_lock(struct vnode *);
 void	 vn_unlock(struct vnode *);
 int	 vn_stat(struct vnode *, struct stat *);
 int	 vn_access(struct vnode *, int);
-struct vnode *vget(struct mount *, char *);
+struct vnode *vget(struct mount *);
 void	 vput(struct vnode *);
 void	 vref(struct vnode *);
 void	 vrele(struct vnode *);

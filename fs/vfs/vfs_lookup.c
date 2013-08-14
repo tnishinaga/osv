@@ -194,7 +194,7 @@ namei(char *path, struct dentry **dpp)
 		strlcat(node, name, sizeof(node));
 		dp = dentry_lookup(mp, node);
 		if (dp == NULL) {
-			vp = vget(mp, node);
+			vp = vget(mp);
 			if (vp == NULL) {
 				drele(ddp);
 				return ENOMEM;

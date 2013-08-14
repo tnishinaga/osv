@@ -67,12 +67,14 @@ int vttoif_tab[10] = {
 
 #define VNODE_BUCKETS 32		/* size of vnode hash table */
 
+#if 0
 /*
  * vnode table.
  * All active (opened) vnodes are stored on this hash table.
  * They can be accessed by its path name.
  */
 static LIST_HEAD(vnode_hash_head, vnode) vnode_table[VNODE_BUCKETS];
+#endif
 
 /*
  * Global lock to access all vnodes and vnode table.
@@ -83,6 +85,7 @@ static mutex_t vnode_lock = MUTEX_INITIALIZER;
 #define VNODE_LOCK()	mutex_lock(&vnode_lock)
 #define VNODE_UNLOCK()	mutex_unlock(&vnode_lock)
 
+#if 0
 /*
  * Get the hash value from the mount point and path name.
  * XXX(hch): replace with a better hash for 64-bit pointers.
@@ -122,6 +125,7 @@ vn_lookup(struct mount *mp, char *path)
 	VNODE_UNLOCK();
 	return NULL;		/* not found */
 }
+#endif
 
 /*
  * Lock vnode
@@ -134,7 +138,6 @@ vn_lock(struct vnode *vp)
 
 	mutex_lock(&vp->v_lock);
 	vp->v_nrlocks++;
-	DPRINTF(VFSDB_VNODE, ("vn_lock:   %s\n", vp->v_path));
 }
 
 /*
@@ -147,7 +150,6 @@ vn_unlock(struct vnode *vp)
 	ASSERT(vp->v_refcnt > 0);
 	ASSERT(vp->v_nrlocks > 0);
 
-	DPRINTF(VFSDB_VNODE, ("vn_unlock: %s\n", vp->v_path));
 	vp->v_nrlocks--;
 	mutex_unlock(&vp->v_lock);
 }
@@ -157,11 +159,10 @@ vn_unlock(struct vnode *vp)
  * Increment its reference count and lock it.
  */
 struct vnode *
-vget(struct mount *mp, char *path)
+vget(struct mount *mp)
 {
 	struct vnode *vp;
 	int error;
-	size_t len;
 
 	DPRINTF(VFSDB_VNODE, ("vget: %s\n", path));
 
@@ -169,15 +170,9 @@ vget(struct mount *mp, char *path)
 		return NULL;
 	memset(vp, 0, sizeof(struct vnode));
 
-	len = strlen(path) + 1;
-	if (!(vp->v_path = malloc(len))) {
-		free(vp);
-		return NULL;
-	}
 	vp->v_mount = mp;
 	vp->v_refcnt = 1;
 	vp->v_op = mp->m_op->vfs_vnops;
-	strlcpy(vp->v_path, path, len);
 	mutex_init(&vp->v_lock);
 	vp->v_nrlocks = 0;
 
@@ -186,7 +181,6 @@ vget(struct mount *mp, char *path)
 	 */
 	if ((error = VFS_VGET(mp, vp)) != 0) {
 		mutex_destroy(&vp->v_lock);
-		free(vp->v_path);
 		free(vp);
 		return NULL;
 	}
@@ -194,9 +188,11 @@ vget(struct mount *mp, char *path)
 	mutex_lock(&vp->v_lock);
 	vp->v_nrlocks++;
 
+#if 0
 	VNODE_LOCK();
 	LIST_INSERT_HEAD(&vnode_table[vn_hash(mp, path)], vp, v_link);
 	VNODE_UNLOCK();
+#endif
 	return vp;
 }
 
@@ -209,8 +205,6 @@ vput(struct vnode *vp)
 	ASSERT(vp);
 	ASSERT(vp->v_nrlocks > 0);
 	ASSERT(vp->v_refcnt > 0);
-	DPRINTF(VFSDB_VNODE, ("vput: ref=%d %s\n", vp->v_refcnt,
-			      vp->v_path));
 
 	VNODE_LOCK();
 	vp->v_refcnt--;
@@ -219,7 +213,9 @@ vput(struct vnode *vp)
 		vn_unlock(vp);
 		return;
 	}
+#if 0
 	LIST_REMOVE(vp, v_link);
+#endif
 	VNODE_UNLOCK();
 
 	/*
@@ -232,7 +228,6 @@ vput(struct vnode *vp)
 	ASSERT(vp->v_nrlocks == 0);
 	mutex_unlock(&vp->v_lock);
 	mutex_destroy(&vp->v_lock);
-	free(vp->v_path);
 	free(vp);
 }
 
@@ -246,8 +241,6 @@ vref(struct vnode *vp)
 	ASSERT(vp->v_refcnt > 0);	/* Need vget */
 
 	VNODE_LOCK();
-	DPRINTF(VFSDB_VNODE, ("vref: ref=%d %s\n", vp->v_refcnt,
-			      vp->v_path));
 	vp->v_refcnt++;
 	VNODE_UNLOCK();
 }
@@ -265,14 +258,14 @@ vrele(struct vnode *vp)
 	ASSERT(vp->v_refcnt > 0);
 
 	VNODE_LOCK();
-	DPRINTF(VFSDB_VNODE, ("vrele: ref=%d %s\n", vp->v_refcnt,
-			      vp->v_path));
 	vp->v_refcnt--;
 	if (vp->v_refcnt > 0) {
 		VNODE_UNLOCK();
 		return;
 	}
+#if 0
 	LIST_REMOVE(vp, v_link);
+#endif
 	VNODE_UNLOCK();
 
 	/*
@@ -281,7 +274,6 @@ vrele(struct vnode *vp)
 	VOP_INACTIVE(vp);
 	vfs_unbusy(vp->v_mount);
 	mutex_destroy(&vp->v_lock);
-	free(vp->v_path);
 	free(vp);
 }
 
@@ -305,6 +297,7 @@ vcount(struct vnode *vp)
 void
 vflush(struct mount *mp)
 {
+#if 0
 	int i;
 	struct vnode *vp;
 
@@ -317,6 +310,7 @@ vflush(struct mount *mp)
 		}
 	}
 	VNODE_UNLOCK();
+#endif
 }
 
 int
@@ -432,10 +426,9 @@ vnode_dump(void)
 	        LIST_FOREACH(vp, &vnode_table[i], v_link) {
 			mp = vp->v_mount;
 
-			dprintf(" %08x %08x %s %6d %8d %s%s\n", (u_int)vp,
+			dprintf(" %08x %08x %s %6d %8d %s\n", (u_int)vp,
 				(u_int)mp, type[vp->v_type], vp->v_refcnt,
-				(strlen(mp->m_path) == 1) ? "\0" : mp->m_path,
-				vp->v_path);
+				(strlen(mp->m_path) == 1) ? "\0" : mp->m_path);
 		}
 	}
 	dprintf("\n");
@@ -464,8 +457,10 @@ vop_einval(void)
 void
 vnode_init(void)
 {
+#if 0
 	int i;
 
 	for (i = 0; i < VNODE_BUCKETS; i++)
 		LIST_INIT(&vnode_table[i]);
+#endif
 }
