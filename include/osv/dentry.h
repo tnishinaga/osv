@@ -14,4 +14,7 @@ struct dentry {
 	struct mount	*d_mount;
 };
 
+struct dentry *dentry_alloc(struct vnode *vp, char *path);
+void	drele(struct dentry *dp);
+
 #endif /* _OSV_DENTRY_H */

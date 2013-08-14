@@ -62,13 +62,30 @@ static int
 ramfs_mount(struct mount *mp, char *dev, int flags, void *data)
 {
 	struct ramfs_node *np;
+	struct vnode *vp;
 
 	DPRINTF(("ramfs_mount: dev=%s\n", dev));
-
+	
 	/* Create a root node */
-	np = ramfs_allocate_node("/", VDIR);
-	if (np == NULL)
+	vp = vget(mp);
+	if (!vp)
 		return ENOMEM;
+	
+	vp->v_type = VDIR;
+	vp->v_flags = VROOT;
+	vp->v_mode = S_IFDIR | S_IRUSR | S_IWUSR | S_IXUSR;
+
+	mp->m_root = dentry_alloc(vp, "/");
+	vput(vp);
+
+	if (!mp->m_root)
+		return ENOMEM;
+
+	np = ramfs_allocate_node("/", VDIR);
+	if (np == NULL) {
+		drele(mp->m_root);
+		return ENOMEM;
+	}
 	mp->m_root->d_vnode->v_data = np;
 	return 0;
 }

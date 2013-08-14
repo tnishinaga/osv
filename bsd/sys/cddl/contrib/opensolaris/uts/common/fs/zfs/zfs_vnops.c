@@ -1108,11 +1108,12 @@ specvp_check(vnode_t **vpp, cred_t *cr)
 #endif /* NOTYET */
 
 static int
-zfs_lookup(struct vnode *dvp, char *nm, struct vnode *vp)
+zfs_lookup(struct vnode *dvp, char *nm, struct vnode **vpp)
 {
 	znode_t *dzp = VTOZ(dvp);
 	zfsvfs_t *zfsvfs = dzp->z_zfsvfs;
 	znode_t *zp;
+	struct vnode *vp;
 	zfs_dirlock_t *dl;
 	int error = 0;
 
@@ -1142,9 +1143,16 @@ zfs_lookup(struct vnode *dvp, char *nm, struct vnode *vp)
 		return (EILSEQ);
 	}
 
+	vp = vget(dvp->v_mount);
+	if (vp == NULL) {
+		ZFS_EXIT(zfsvfs);
+		return ENOMEM;
+	}
+
 	error = zfs_dirent_lock(&dl, dzp, nm, &zp, ZEXISTS | ZSHARED, NULL, NULL);
 	if (error) {
 		ZFS_EXIT(zfsvfs);
+		vput(vp);
 		return error;
 	}
 	zfs_dirent_unlock(dl);
@@ -1158,6 +1166,8 @@ zfs_lookup(struct vnode *dvp, char *nm, struct vnode *vp)
 	vp->v_size = zp->z_size;
 
 	ZFS_EXIT(zfsvfs);
+
+	*vpp = vp;
 	return error;
 }
 

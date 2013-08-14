@@ -194,24 +194,22 @@ namei(char *path, struct dentry **dpp)
 		strlcat(node, name, sizeof(node));
 		dp = dentry_lookup(mp, node);
 		if (dp == NULL) {
-			vp = vget(mp);
-			if (vp == NULL) {
-				drele(ddp);
-				return ENOMEM;
-			}
-
 			dvp = ddp->d_vnode;
 			vn_lock(dvp);
 
 			/* Find a vnode in this directory. */
-			error = VOP_LOOKUP(dvp, name, vp);
-			if (error || (*p == '/' && vp->v_type != VDIR)) {
+			error = VOP_LOOKUP(dvp, name, &vp);
+			if (error) {
+				vn_unlock(dvp);
+				drele(ddp);
+				return error;
+			}
+
+			if (*p == '/' && vp->v_type != VDIR) {
 				vput(vp);
 				vn_unlock(dvp);
 				drele(ddp);
-				if (!error)
-					error = ENOENT;
-				return error;
+				return ENOENT;
 			}
 
 			dp = dentry_alloc(vp, node);

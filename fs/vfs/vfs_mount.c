@@ -84,7 +84,6 @@ sys_mount(char *dev, char *dir, char *fsname, int flags, void *data)
 	struct mount *mp;
 	struct device *device;
 	struct dentry *dp_covered;
-	struct vnode *vp;
 	int error;
 
 	kprintf("VFS: mounting %s at %s\n", fsname, dir);
@@ -148,31 +147,10 @@ sys_mount(char *dev, char *dir, char *fsname, int flags, void *data)
 	mp->m_covered = dp_covered;
 
 	/*
-	 * Create a root vnode for this file system.
-	 */
-	if ((vp = vget(mp)) == NULL) {
-		error = ENOMEM;
-		goto err3;
-	}
-	vp->v_type = VDIR;
-	vp->v_flags = VROOT;
-	vp->v_mode = S_IFDIR | S_IRUSR | S_IWUSR | S_IXUSR;
-
-	mp->m_root = dentry_alloc(vp, "/");
-	if (!mp->m_root) {
-		vput(vp);
-		goto err3;
-	}
-	vput(vp);
-
-	/*
 	 * Call a file system specific routine.
 	 */
 	if ((error = VFS_MOUNT(mp, dev, flags, data)) != 0)
-		goto err4;
-
-	if (mp->m_flags & MNT_RDONLY)
-		vp->v_mode &=~S_IWUSR;
+		goto err3;
 
 	/*
 	 * Insert to mount list
@@ -181,8 +159,6 @@ sys_mount(char *dev, char *dir, char *fsname, int flags, void *data)
 	MOUNT_UNLOCK();
 
 	return 0;	/* success */
- err4:
-	drele(mp->m_root);
  err3:
 	if (dp_covered)
 		drele(dp_covered);

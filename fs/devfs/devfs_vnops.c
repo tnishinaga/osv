@@ -114,9 +114,10 @@ devfs_ioctl(struct vnode *vp, struct file *fp, u_long cmd, void *arg)
 }
 
 static int
-devfs_lookup(struct vnode *dvp, char *name, struct vnode *vp)
+devfs_lookup(struct vnode *dvp, char *name, struct vnode **vpp)
 {
 	struct devinfo info;
+	struct vnode *vp;
 	int error, i;
 
 	DPRINTF(("devfs_lookup:%s\n", name));
@@ -137,11 +138,17 @@ devfs_lookup(struct vnode *dvp, char *name, struct vnode *vp)
 			break;
 		i++;
 	}
+
+	vp = vget(dvp->v_mount);
+	if (vp == NULL)
+		return ENOMEM;
+
 	vp->v_type = (info.flags & D_CHR) ? VCHR : VBLK;
 	if (info.flags & D_TTY)
 		vp->v_flags |= VISTTY;
 
 	vp->v_mode = (mode_t)(S_IRUSR | S_IWUSR);
+	*vpp = vp;
 	return 0;
 }
 
@@ -179,13 +186,36 @@ devfs_readdir(struct vnode *vp, struct file *fp, struct dirent *dir)
 	return 0;
 }
 
+static int
+devfs_mount(struct mount *mp, char *dev, int flags, void *data)
+{
+	struct vnode *vp;
+
+	/*
+	 * Create a root vnode for this file system.
+	 */
+	vp = vget(mp);
+	if (!vp)
+		return ENOMEM;
+
+	vp->v_type = VDIR;
+	vp->v_flags = VROOT;
+	vp->v_mode = S_IFDIR | S_IRUSR | S_IWUSR | S_IXUSR;
+
+	mp->m_root = dentry_alloc(vp, "/");
+	vput(vp);
+	if (!mp->m_root)
+		return ENOMEM;
+
+	return 0;
+}
+
 int
 devfs_init(void)
 {
 	return 0;
 }
 
-#define devfs_mount	((vfsop_mount_t)vfs_nullop)
 #define devfs_unmount	((vfsop_umount_t)vfs_nullop)
 #define devfs_sync	((vfsop_sync_t)vfs_nullop)
 #define devfs_vget	((vfsop_vget_t)vfs_nullop)

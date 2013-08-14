@@ -967,6 +967,7 @@ zfs_domount(vfs_t *vfsp, char *osname)
 	int error = 0;
 	zfsvfs_t *zfsvfs;
 	znode_t *rootzp;
+	struct vnode *rootvp;
 
 	ASSERT(vfsp);
 	ASSERT(osname);
@@ -1016,10 +1017,25 @@ zfs_domount(vfs_t *vfsp, char *osname)
 		error = zfsvfs_setup(zfsvfs, B_TRUE);
 	}
 
+	rootvp = vget(vfsp);
+	if (!rootvp) {
+		error = ENOMEM;
+		goto out;
+	}
+	rootvp->v_type = VDIR;
+	rootvp->v_flags = VROOT;
+	rootvp->v_mode = S_IFDIR | S_IRUSR | S_IWUSR | S_IXUSR;
+
+	vfsp->m_root = dentry_alloc(rootvp, "/");
+	vput(rootvp);
+	if (!vfsp->m_root) {
+		error = ENOMEM;
+		goto out;
+	}
+
 	error = zfs_zget(zfsvfs, zfsvfs->z_root, &rootzp);
 	if (error == 0)
-		vfsp->m_root->d_vnode->v_data = rootzp;
-
+		rootvp->v_data = rootzp;
 
 #ifdef notyet
 	if (!zfsvfs->z_issnap)

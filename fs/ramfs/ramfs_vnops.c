@@ -156,9 +156,10 @@ ramfs_rename_node(struct ramfs_node *np, char *name)
 }
 
 static int
-ramfs_lookup(struct vnode *dvp, char *name, struct vnode *vp)
+ramfs_lookup(struct vnode *dvp, char *name, struct vnode **vpp)
 {
 	struct ramfs_node *np, *dnp;
+	struct vnode *vp;
 	size_t len;
 	int found;
 
@@ -181,12 +182,19 @@ ramfs_lookup(struct vnode *dvp, char *name, struct vnode *vp)
 		mutex_unlock(&ramfs_lock);
 		return ENOENT;
 	}
+
+	vp = vget(dvp->v_mount);
+	if (vp == NULL)
+		return ENOMEM;
+
 	vp->v_data = np;
 	vp->v_mode = ALLPERMS;
 	vp->v_type = np->rn_type;
 	vp->v_size = np->rn_size;
 
 	mutex_unlock(&ramfs_lock);
+
+	*vpp = vp;
 	return 0;
 }
 
