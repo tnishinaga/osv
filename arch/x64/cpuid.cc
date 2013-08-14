@@ -94,7 +94,7 @@ void process_xen_bits(features_type &features)
         if (x.b != sig.b || x.c != sig.c || x.d != sig.d) {
             continue;
         }
-        xen::xen_init(features, base);
+        xen::xen_hvm_init(features, base);
         break;
     }
 }

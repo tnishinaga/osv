@@ -144,39 +144,44 @@ void xen_set_callback()
         assert(0);
 }
 
-void xen_init(processor::features_type &features, unsigned base)
+void xen_hvm_init(processor::features_type &features, unsigned base)
 {
-        // Base + 1 would have given us the version number, it is mostly
-        // uninteresting for us now
-        auto x = processor::cpuid(base + 2);
-        processor::wrmsr(x.b, cast_pointer(&hypercall_page));
+    if (xen_start_info != nullptr) {
+        features.xen_clocksource = true;
+        return;
+    }
 
-        struct xen_feature_info info;
-        // To fill up the array used by C code
-        for (int i = 0; i < XENFEAT_NR_SUBMAPS; i++) {
-            info.submap_idx = i;
-            if (version_hypercall(XENVER_get_features, &info) < 0)
-                assert(0);
-            for (int j = 0; j < 32; j++)
-                xen_features[j] = !!(info.submap & 1<<j);
-        }
-        features.xen_clocksource = xen_features[9] & 1;
-        features.xen_vector_callback = xen_features[8] & 1;
-        if (!features.xen_vector_callback)
-            abort("Hypervisor does not support vectored callbacks");
+    // Base + 1 would have given us the version number, it is mostly
+    // uninteresting for us now
+    auto x = processor::cpuid(base + 2);
+    processor::wrmsr(x.b, cast_pointer(&hypercall_page));
 
-        struct xen_add_to_physmap map;
-        map.domid = DOMID_SELF;
-        map.idx = 0;
-        map.space = 0;
-        map.gpfn = cast_pointer(&xen_shared_info) >> 12;
-
-        // 7 => add to physmap
-        if (memory_hypercall(XENMEM_add_to_physmap, &map))
+    struct xen_feature_info info;
+    // To fill up the array used by C code
+    for (int i = 0; i < XENFEAT_NR_SUBMAPS; i++) {
+        info.submap_idx = i;
+        if (version_hypercall(XENVER_get_features, &info) < 0)
             assert(0);
+        for (int j = 0; j < 32; j++)
+            xen_features[j] = !!(info.submap & 1<<j);
+    }
+    features.xen_clocksource = xen_features[9] & 1;
+    features.xen_vector_callback = xen_features[8] & 1;
+    if (!features.xen_vector_callback)
+        abort("Hypervisor does not support vectored callbacks");
 
-        features.xen_pci = xen_pci_enabled();
-        HYPERVISOR_shared_info = reinterpret_cast<shared_info_t *>(&xen_shared_info);
+    struct xen_add_to_physmap map;
+    map.domid = DOMID_SELF;
+    map.idx = 0;
+    map.space = 0;
+    map.gpfn = cast_pointer(&xen_shared_info) >> 12;
+
+    // 7 => add to physmap
+    if (memory_hypercall(XENMEM_add_to_physmap, &map))
+        assert(0);
+
+    features.xen_pci = xen_pci_enabled();
+    HYPERVISOR_shared_info = reinterpret_cast<shared_info_t *>(&xen_shared_info);
 }
 
 extern "C"
