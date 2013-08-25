@@ -57,6 +57,10 @@
 /java/bench.jar: tests/bench/bench.jar
 /java/cloudius.jar: java/cloudius.jar
 /java/cli.jar: java/cli.jar
+/java/jruby-complete-1.7.4.jar: ../../java/lib/jruby-complete-1.7.4.jar
+/java/web.jar: ../../../mgmt/web/build/web.jar
+/views/index.haml: ../../../mgmt/web/views/index.haml
+/java/views/layout.haml: ../../../mgmt/web/views/layout.haml
 /tools/ifconfig.so: ./tools/ifconfig/ifconfig.so
 /tools/lsroute.so: ./tools/route/lsroute.so
 /console/util.js: ../../console/util.js
