@@ -24,4 +24,4 @@
 	url = ../jars.bin.git
 [submodule "mgmt"]
 	path = mgmt
-	url = git@github.com:cloudius-systems/mgmt.git
+	url = ../mgmt.git
