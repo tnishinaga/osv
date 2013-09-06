@@ -2,6 +2,7 @@
 #define ARCH_X86_PROCESSOR_H
 
 #include <osv/types.h>
+#include "xen.hh"
 
 namespace processor {
 
@@ -192,14 +193,20 @@ inline void write_ss(u16 r) {
 }
 
 inline u64 rdmsr(u32 index) {
-    u32 lo, hi;
-    asm volatile ("rdmsr" : "=a"(lo), "=d"(hi) : "c"(index));
-    return lo | ((u64)hi << 32);
+    // gcc seems to be interpreting the comma in "u32 lo = x, hi = y" as a parameter separator. So I have
+    // to declare each parameter separately
+    XENPV_ALTERNATIVE(
+        { u32 lo; u32 hi; asm volatile ("rdmsr" : "=a"(lo), "=d"(hi) : "c"(index));
+          return lo | ((u64)hi << 32); },
+        { return xen::xen_read_msr(index); }
+    );
 }
 
 inline void wrmsr(u32 index, u64 data) {
-    u32 lo = data, hi = data >> 32;
-    asm volatile ("wrmsr" : : "c"(index), "a"(lo), "d"(hi));
+    XENPV_ALTERNATIVE(
+        { u32 lo = data; u32 hi = data >> 32; asm volatile ("wrmsr" : : "c"(index), "a"(lo), "d"(hi)); },
+        { xen::xen_write_msr(index, data); }
+    );
 }
 
 inline bool wrmsr_safe(u32 index, u64 data) {

@@ -43,6 +43,8 @@ namespace xen {
 void xen_hvm_init(processor::features_type &features, unsigned base);
 extern struct xen_shared_info xen_shared_info;
 void xen_set_callback(void);
+int xen_write_msr(u32 index, u64 data);
+u64 xen_read_msr(u32 index);
 
 }
 

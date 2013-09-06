@@ -5,6 +5,7 @@
 #include "cpuid.hh"
 #include "exceptions.hh"
 #include "sched.hh"
+#include "msr.hh"
 #include <bsd/porting/pcpu.h>
 #include <bsd/machine/xen/xen-os.h>
 
@@ -89,6 +90,12 @@ hvm_hypercall(unsigned type, struct xen_hvm_param *param)
     return hypercall(__HYPERVISOR_hvm_op, type, cast_pointer(param));
 }
 
+inline ulong
+set_segment_base(u32 segment, u64 base)
+{
+    return hypercall(__HYPERVISOR_set_segment_base, segment, base);
+}
+
 struct xen_shared_info xen_shared_info __attribute__((aligned(4096)));
 extern void* xen_bootstrap_end;
 
@@ -121,6 +128,24 @@ static void xen_ack_irq()
     auto cpu = sched::cpu::current();
     HYPERVISOR_shared_info->vcpu_info[cpu->id].evtchn_upcall_pending = 0; 
 }
+
+int xen_write_msr(u32 index, u64 data)
+{
+    switch (index) {
+        case (u32)msr::IA32_FS_BASE:
+            return set_segment_base(index, data);
+        default:
+            abort();
+    }
+    return 0;
+}
+
+u64 xen_read_msr(u32 index)
+{
+    abort();
+    return 0;
+}
+
 
 void xen_set_callback()
 {
