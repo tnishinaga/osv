@@ -28,14 +28,17 @@ struct xen_vcpu_info {
 };
 
 struct xen_shared_info {
-    struct xen_vcpu_info vcpu_info[32];
+    union {
+        char __size[4096];
+        struct {
+            struct xen_vcpu_info vcpu_info[32];
 
-    unsigned long evtchn_pending[sizeof(unsigned long) * 8];
-    unsigned long evtchn_mask[sizeof(unsigned long) * 8];
+            unsigned long evtchn_pending[sizeof(unsigned long) * 8];
+            unsigned long evtchn_mask[sizeof(unsigned long) * 8];
 
-    pvclock_wall_clock wc;
-
-    unsigned long pad1[3];
+            pvclock_wall_clock wc;
+        };
+    };
 };
 
 namespace xen {
