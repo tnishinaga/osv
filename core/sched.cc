@@ -11,6 +11,7 @@
 #include "smp.hh"
 #include "osv/trace.hh"
 #include <osv/percpu.hh>
+#include <osv/execinfo.hh>
 #include "prio.hh"
 #include "elf.hh"
 
@@ -21,7 +22,7 @@ extern char _percpu_start[], _percpu_end[], _percpu_sec_end[];
 namespace sched {
 
 TRACEPOINT(trace_sched_switch, "to %p vold=%d vnew=%d", thread*, s64, s64);
-TRACEPOINT(trace_sched_wait, "");
+TRACEPOINT(trace_sched_wait, "%p,%p,%p,%p,%p", void*, void*, void*, void*, void*);
 TRACEPOINT(trace_sched_wake, "wake %p", thread*);
 TRACEPOINT(trace_sched_migrate, "thread=%p cpu=%d", thread*, unsigned);
 TRACEPOINT(trace_sched_queue, "thread=%p", thread*);
@@ -555,7 +556,10 @@ thread* thread::current()
 
 void thread::wait()
 {
-    trace_sched_wait();
+    void* bt0[5] = {};
+    backtrace_safe(bt0, 5);
+
+    trace_sched_wait(bt0[0], bt0[1], bt0[2], bt0[3], bt0[4]);
     schedule(true);
 }
 
