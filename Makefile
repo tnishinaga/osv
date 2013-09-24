@@ -16,7 +16,7 @@ silentant = $(if $V,, scripts/silentant.py)
 all: $(submake)
 	$(call quiet, $(silentant) ant -Dmode=$(mode) -Dout=$(abspath $(out)/tests/bench) \
 		-e -f tests/bench/build.xml $(if $V,,-q), ANT tests/bench)
-	cd mgmt && ./gradlew :web:jar build
+	cd mgmt && ./mgmt.sh 
 	$(MAKE) -C $(dir $(submake)) $@
 
 $(submake): Makefile
@@ -31,7 +31,6 @@ qcow2: all
 
 clean:
 	$(call quiet, rm -rf build/$(mode), CLEAN)
-	$(call quiet, cd mgmt && ./gradlew clean >> /dev/null , GRADLE CLEAN)
 
 external:
 	cd external/libunwind && autoreconf -i
