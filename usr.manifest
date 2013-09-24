@@ -57,8 +57,8 @@
 /usr/lib/&/jni/stty.so: java/&
 /usr/lib/&/jni/tracepoint.so: java/&
 /usr/lib/&/jni/power.so: java/&
-/usr/mgmt/web-1.0.jar: ../../mgmt/1.0.0/web-1.0.jar
-/usr/mgmt/crash-1.0.jar: ../../mgmt/1.0.0/crash-1.0.jar
+/usr/mgmt/web-1.0.0.jar: ../../mgmt/1.0.0/web-1.0.0.jar
+/usr/mgmt/crash-1.0.0.jar: ../../mgmt/1.0.0/crash-1.0.0.jar
 /usr/mgmt/mgmt.json: ../../mgmt/1.0.0/config/mgmt.json
 /usr/mgmt/uploads/index.rb: ../../mgmt/1.0.0/views/index.rb
 /usr/mgmt/apps/index.rb: ../../mgmt/1.0.0/views/index.rb
