@@ -24,6 +24,10 @@ namespace vmware {
 
         enum {
             VMXNET3_DEVICE_ID=0x07B0,
+
+            //BAR1 registers
+            VMXNET3_BAR1_VRRS=0x000,    // Revision
+            VMXNET3_BAR1_UVRS=0x008     // UPT version
         };
 
         explicit vmxnet3(pci::device& dev);
@@ -35,6 +39,7 @@ namespace vmware {
 
     private:
         void parse_pci_config(void);
+        void do_version_handshake(void);
 
         //maintains the vmxnet3 instance number for multiple adapters
         static int _instance;
