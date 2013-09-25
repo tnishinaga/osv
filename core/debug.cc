@@ -39,7 +39,9 @@ bool logger::parse_configuration(void)
     add_tag("virtio", logger_warn);
     add_tag("virtio-blk", logger_warn);
     add_tag("virtio-net", logger_warn);
-    add_tag("pci", logger_info);
+    add_tag("vmxnet3", logger_debug);
+    add_tag("vmware", logger_debug);
+    add_tag("pci", logger_debug);
     add_tag("poll", logger_info);
     add_tag("dhcp", logger_info);
     add_tag("acpi", logger_error);
