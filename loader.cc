@@ -29,6 +29,7 @@
 #include "drivers/xenfront-xenbus.hh"
 #include "drivers/ahci.hh"
 #include "drivers/ide.hh"
+#include "drivers/vmxnet3.hh"
 
 #include <osv/sched.hh>
 #include "drivers/console.hh"
@@ -302,6 +303,7 @@ void* do_main_thread(void *_commands)
     drvman->register_driver(xenfront::xenbus::probe);
     drvman->register_driver(ahci::hba::probe);
     drvman->register_driver(ide::ide_drive::probe);
+    drvman->register_driver(vmware::vmxnet3::probe);
     boot_time.event("drivers probe");
     drvman->load_all();
     drvman->list_drivers();
