@@ -62,6 +62,7 @@ namespace vmware {
         vmxnet3_i("VMXNET3 INSTANCE");
         _id = _instance++;
         parse_pci_config();
+        do_version_handshake();
     }
 
     hw_driver* vmxnet3::probe(hw_device* dev)
@@ -89,6 +90,23 @@ namespace vmware {
         if (_bar2 == nullptr) {
             throw std::runtime_error("BAR2 is absent");
         }
+    }
+
+    void vmxnet3::do_version_handshake(void)
+    {
+        auto val = _bar1->read(VMXNET3_BAR1_VRRS);
+        if (!(val & 0x01)) {
+            auto err = boost::format("unknown HW version %d") % val;
+            throw std::runtime_error(err.str());
+        }
+        _bar1->write(VMXNET3_BAR1_VRRS, u32(1));
+
+        val = _bar1->read(VMXNET3_BAR1_UVRS);
+        if (!(val & 0x01)) {
+            auto err = boost::format("unknown UPT version %d") % val;
+            throw std::runtime_error(err.str());
+        }
+        _bar1->write(VMXNET3_BAR1_UVRS, u32(1));
     }
 
 }
