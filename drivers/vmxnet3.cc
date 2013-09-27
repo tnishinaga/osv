@@ -56,6 +56,37 @@ namespace vmware {
     #define vmxnet3_w(...)   tprintf_w(vmxnet3_tag, __VA_ARGS__)
     #define vmxnet3_e(...)   tprintf_e(vmxnet3_tag, __VA_ARGS__)
 
+    vmxnet3_drv_shared::vmxnet3_drv_shared()
+    {
+        _layout = static_cast<vmxnet3_shared_layout*>
+            (memory::alloc_phys_contiguous_aligned(sizeof(*_layout), 1));
+
+        if(!_layout)
+            throw std::runtime_error("VMXNET3 driver shared area allocation failed");
+
+        init_layout();
+    }
+
+    vmxnet3_drv_shared::~vmxnet3_drv_shared()
+    {
+        memory::free_phys_contiguous_aligned(_layout);
+    }
+
+    void vmxnet3_drv_shared::init_layout()
+    {
+        memset(_layout, 0, sizeof(*_layout));
+
+        _layout->magic = VMXNET3_REV1_MAGIC;
+
+        // DriverInfo
+        _layout->version = VMXNET3_DRIVER_VERSION;
+        _layout->guest = VMXNET3_GOS_FREEBSD | VMXNET3_GUEST_OS_VERSION |
+        (sizeof(void*) == sizeof(u32) ? VMXNET3_GOS_32BIT : VMXNET3_GOS_32BIT);
+
+        _layout->vmxnet3_revision = VMXNET3_REVISION;
+        _layout->upt_version = VMXNET3_UPT_VERSION;
+    }
+
     vmxnet3::vmxnet3(pci::device& dev)
         : vmware_driver(dev)
     {
@@ -95,18 +126,18 @@ namespace vmware {
     void vmxnet3::do_version_handshake(void)
     {
         auto val = _bar1->read(VMXNET3_BAR1_VRRS);
-        if (!(val & 0x01)) {
+        if ((val & VMXNET3_VERSIONS_MASK) != VMXNET3_REVISION) {
             auto err = boost::format("unknown HW version %d") % val;
             throw std::runtime_error(err.str());
         }
-        _bar1->write(VMXNET3_BAR1_VRRS, u32(1));
+        _bar1->write(VMXNET3_BAR1_VRRS, VMXNET3_REVISION);
 
         val = _bar1->read(VMXNET3_BAR1_UVRS);
-        if (!(val & 0x01)) {
+        if ((val & VMXNET3_VERSIONS_MASK) != VMXNET3_UPT_VERSION) {
             auto err = boost::format("unknown UPT version %d") % val;
             throw std::runtime_error(err.str());
         }
-        _bar1->write(VMXNET3_BAR1_UVRS, u32(1));
+        _bar1->write(VMXNET3_BAR1_UVRS, VMXNET3_UPT_VERSION);
     }
 
 }
