@@ -48,6 +48,14 @@ namespace vmware {
         u32    vtag:16;         //VLAN tag
     } __packed vmxnet3_tx_descr_layout;
 
+
+    class vmxnet3_tx_descr
+        : public vmxnet3_layout_holder<vmxnet3_tx_descr_layout> {
+    public:
+        vmxnet3_tx_descr(void* storage)
+            : vmxnet3_layout_holder(storage) {}
+    };
+
     typedef struct {
         u32    eop_idx:12;      // EOP index in Tx ring
         u32    pad1:20;
@@ -60,6 +68,13 @@ namespace vmware {
         u32    gen:1;
     } __packed vmxnet3_tx_compdesc_layout;
 
+    class vmxnet3_tx_compdesc
+        : public vmxnet3_layout_holder<vmxnet3_tx_compdesc_layout> {
+    public:
+        vmxnet3_tx_compdesc(void* storage)
+            : vmxnet3_layout_holder(storage) {}
+    };
+
     typedef struct {
         u64    addr;
 
@@ -71,6 +86,13 @@ namespace vmware {
 
         u32    pad1:32;
     } __packed vmxnet3_rx_desc_layout;
+
+    class vmxnet3_rx_desc
+        : public vmxnet3_layout_holder<vmxnet3_rx_desc_layout> {
+    public:
+        vmxnet3_rx_desc(void* storage)
+            : vmxnet3_layout_holder(storage) {}
+    };
 
     typedef struct {
         u32     rxd_idx:12;     //Rx descriptor index
@@ -102,33 +124,106 @@ namespace vmware {
         u32     gen:1;
     } __packed vmxnet3_rx_compdesc_layout;
 
-    class vmxnet3_tx_descr
-        : public vmxnet3_layout_holder<vmxnet3_tx_descr_layout> {
-    public:
-        vmxnet3_tx_descr(void* storage)
-            : vmxnet3_layout_holder(storage) {}
-    };
-
-    class vmxnet3_tx_compdesc
-        : public vmxnet3_layout_holder<vmxnet3_tx_compdesc_layout> {
-    public:
-        vmxnet3_tx_compdesc(void* storage)
-            : vmxnet3_layout_holder(storage) {}
-    };
-
-    class vmxnet3_rx_desc
-        : public vmxnet3_layout_holder<vmxnet3_rx_desc_layout> {
-    public:
-        vmxnet3_rx_desc(void* storage)
-            : vmxnet3_layout_holder(storage) {}
-    };
-
     class vmxnet3_rx_compdesc
         : public vmxnet3_layout_holder<vmxnet3_rx_compdesc_layout> {
     public:
         vmxnet3_rx_compdesc(void* storage)
             : vmxnet3_layout_holder(storage) {}
     };
+
+    struct UPT1_TxStats {
+        u64    TSO_packets;
+        u64    TSO_bytes;
+        u64    ucast_packets;
+        u64    ucast_bytes;
+        u64    mcast_packets;
+        u64    mcast_bytes;
+        u64    bcast_packets;
+        u64    bcast_bytes;
+        u64    error;
+        u64    discard;
+    } __packed;
+
+    typedef struct {
+        // Control
+        u32    npending;
+        u32    intr_threshold;
+        u64    reserved1;
+
+        // Config
+        u64    cmd_ring;
+        u64    data_ring;
+        u64    comp_ring;
+        u64    driver_data;
+        u64    reserved2;
+        u32    cmd_ring_len;
+        u32    data_ring_len;
+        u32    comp_ring_len;
+        u32    driver_data_len;
+        u8     intr_idx;
+        u8     pad1[7];
+
+        // Queue status
+        u8     stopped;
+        u8     pad2[3];
+        u32    error;
+
+        struct UPT1_TxStats stats;
+
+        u8      pad3[88];
+    } __packed vmxnet3_txq_shared_layout;
+
+    class vmxnet3_txq_shared
+        : public vmxnet3_layout_holder<vmxnet3_txq_shared_layout> {
+    public:
+        vmxnet3_txq_shared(void* storage)
+            : vmxnet3_layout_holder(storage) {}
+    };
+
+    struct UPT1_RxStats {
+        u64   LRO_packets;
+        u64   LRO_bytes;
+        u64   ucast_packets;
+        u64   ucast_bytes;
+        u64   mcast_packets;
+        u64   mcast_bytes;
+        u64   bcast_packets;
+        u64   bcast_bytes;
+        u64   nobuffer;
+        u64   error;
+    } __packed;
+
+    typedef struct {
+        u8      update_rxhead;
+        u8      pad1[7];
+        u64     reserved1;
+
+        u64     cmd_ring[2];
+        u64     comp_ring;
+        u64     driver_data;
+        u64     reserved2;
+        u32     cmd_ring_len[2];
+        u32     comp_ring_len;
+        u32     driver_data_len;
+        u8      intr_idx;
+        u8      pad2[7];
+
+        u8      stopped;
+        u8      pad3[3];
+        u32     error;
+
+        struct  UPT1_RxStats stats;
+
+        u8      pad4[88];
+    } __packed vmxnet3_rxq_shared_layout;
+
+    class vmxnet3_rxq_shared
+        : public vmxnet3_layout_holder<vmxnet3_rxq_shared_layout> {
+    public:
+        vmxnet3_rxq_shared(void* storage)
+            : vmxnet3_layout_holder(storage) {}
+    };
+
 }
 
 #endif // VIRTIO_VRING_H
