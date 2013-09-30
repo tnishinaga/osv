@@ -14,6 +14,7 @@
 #include <functional>
 #include <osv/mutex.h>
 #include "debug.hh"
+#include <mmu.hh>
 
 namespace vmware {
 
@@ -108,6 +109,14 @@ namespace vmware {
         : public vmxnet3_layout_holder<vmxnet3_shared_layout> {
     public:
         void attach(void* storage);
+        void set_driver_data(mmu::phys pa, u32 len)
+            { _layout->driver_data = pa; _layout->driver_data_len = len; }
+        void set_queue_shared(mmu::phys pa, u32 len)
+            {_layout->queue_shared = pa; _layout->queue_shared_len = len; }
+        void set_max_sg_len(u16 num)
+            { _layout->nrxsg_max = num; }
+        void set_mcast_table(mmu::phys pa, u32 len)
+            { _layout->mcast_table = pa; _layout->mcast_tablelen = len; }
     };
 
     typedef struct {
@@ -127,11 +136,11 @@ namespace vmware {
         u32    pad3:1;
         u32    vtag_mode:1;     //VLAN tag insertion mode
         u32    vtag:16;         //VLAN tag
-    } __packed vmxnet3_tx_descr_layout;
+    } __packed vmxnet3_tx_desc_layout;
 
 
-    class vmxnet3_tx_descr
-        : public vmxnet3_layout_holder<vmxnet3_tx_descr_layout> {
+    class vmxnet3_tx_desc
+        : public vmxnet3_layout_holder<vmxnet3_tx_desc_layout> {
     };
 
     typedef struct {
@@ -264,11 +273,11 @@ namespace vmware {
         u8      pad1[7];
         u64     reserved1;
 
-        u64     cmd_ring[2];
+        u64     cmd_ring[VMXNET3_RXRINGS_PERQ];
         u64     comp_ring;
         u64     driver_data;
         u64     reserved2;
-        u32     cmd_ring_len[2];
+        u32     cmd_ring_len[VMXNET3_RXRINGS_PERQ];
         u32     comp_ring_len;
         u32     driver_data_len;
         u8      intr_idx;

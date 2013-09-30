@@ -15,8 +15,6 @@
 #include "drivers/pci-device.hh"
 #include "interrupt.hh"
 
-#include "mmu.hh"
-
 #include <sstream>
 #include <string>
 #include <string.h>
@@ -64,21 +62,28 @@ namespace vmware {
     }
 
     vmxnet3_txqueue::vmxnet3_txqueue()
-        : _tx_descr_mem(vmxnet3_tx_descr::size() * VMXNET3_MAX_TX_NDESC,
-                        VMXNET3_DESCR_ALIGN)
-        , _tx_compdescr_mem(vmxnet3_tx_compdesc::size() * VMXNET3_MAX_TX_NCOMPDESC,
-                            VMXNET3_DESCR_ALIGN)
     {
-        attach_descriptors();
+        _layout->cmd_ring = _cmd_ring.get_desc_pa();
+        _layout->cmd_ring_len = _cmd_ring.get_desc_num();
+        _layout->comp_ring = _comp_ring.get_desc_pa();
+        _layout->comp_ring_len = _comp_ring.get_desc_num();
+
+        _layout->driver_data = mmu::virt_to_phys(this);
+        _layout->driver_data_len = sizeof(*this);
     }
 
-    void vmxnet3_txqueue::attach_descriptors(void)
+    vmxnet3_rxqueue::vmxnet3_rxqueue()
     {
-        void *va = _tx_descr_mem.get_va();
-        slice_memory(va, _tx_desc);
+        for (unsigned i = 0; i < VMXNET3_RXRINGS_PERQ; i++) {
+            _layout->cmd_ring[i] = _cmd_rings[i].get_desc_pa();
+            _layout->cmd_ring_len[i] = _cmd_rings[i].get_desc_num();
+        }
 
-        void *cva = _tx_compdescr_mem.get_va();
-        slice_memory(cva, _tx_comp_desc);
+        _layout->comp_ring = _comp_ring.get_desc_pa();
+        _layout->comp_ring_len = _comp_ring.get_desc_num();
+
+        _layout->driver_data = mmu::virt_to_phys(this);
+        _layout->driver_data_len = sizeof(*this);
     }
 
     vmxnet3::vmxnet3(pci::device& dev)
@@ -88,15 +93,16 @@ namespace vmware {
         , _queues_shared_mem(vmxnet3_txq_shared::size() * VMXNET3_TX_QUEUES +
                              vmxnet3_rxq_shared::size() * VMXNET3_RX_QUEUES,
                              VMXNET3_QUEUES_SHARED_ALIGN)
+        , _mcast_list(VMXNET3_MULTICAST_MAX * VMXNET3_ETH_ALEN, VMXNET3_MULTICAST_ALIGN)
     {
         vmxnet3_i("VMXNET3 INSTANCE");
         _id = _instance++;
+        _drv_shared.attach(_drv_shared_mem.get_va());
+        attach_queues_shared();
 
         parse_pci_config();
         do_version_handshake();
-
-        _drv_shared.attach(_drv_shared_mem.get_va());
-        attach_queues_shared();
+        fill_driver_shared();
     }
 
     void vmxnet3::attach_queues_shared(void)
@@ -105,6 +111,16 @@ namespace vmware {
 
         slice_memory(va, _txq);
         slice_memory(va, _rxq);
+    }
+
+    void vmxnet3::fill_driver_shared(void)
+    {
+        _drv_shared.set_driver_data(mmu::virt_to_phys(this), sizeof(*this));
+        _drv_shared.set_queue_shared(_queues_shared_mem.get_pa(),
+                                     _queues_shared_mem.get_size());
+        _drv_shared.set_max_sg_len(VMXNET3_MAX_RX_SEGS);
+        _drv_shared.set_mcast_table(_mcast_list.get_pa(),
+                                    _mcast_list.get_size());
     }
 
     hw_driver* vmxnet3::probe(hw_device* dev)
