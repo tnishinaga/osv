@@ -96,6 +96,7 @@ namespace vmware {
             //BAR1 registers
             VMXNET3_BAR1_VRRS = 0x000,    // Revision
             VMXNET3_BAR1_UVRS = 0x008,    // UPT version
+            VMXNET3_BAR1_CMD  = 0x020,    // Command
 
             VMXNET3_MULTICAST_MAX = 32,
             VMXNET3_MAX_RX_SEGS = 17,
@@ -114,13 +115,16 @@ namespace vmware {
         void attach_queues_shared(void);
         void fill_driver_shared(void);
 
+        void write_cmd(u32 cmd);
+        u32 read_cmd(u32 cmd);
+
         //maintains the vmxnet3 instance number for multiple adapters
         static int _instance;
         int _id;
 
         //Shared memory
+        pci::bar *_bar0 = nullptr;
         pci::bar *_bar1 = nullptr;
-        pci::bar *_bar2 = nullptr;
 
         memory::phys_contiguious_memory _drv_shared_mem;
         vmxnet3_drv_shared _drv_shared;
