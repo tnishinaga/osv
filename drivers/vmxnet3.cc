@@ -40,6 +40,7 @@
 #include <bsd/sys/netinet/ip.h>
 #include <bsd/sys/netinet/udp.h>
 #include <bsd/sys/netinet/tcp.h>
+#include <bsd/machine/atomic.h>
 
 using namespace memory;
 
@@ -139,13 +140,13 @@ namespace vmware {
 
     void vmxnet3::parse_pci_config(void)
     {
-        _bar1 = _dev.get_bar(1);
-        if (_bar1 == nullptr) {
+        _bar0 = _dev.get_bar(1);
+        if (_bar0 == nullptr) {
             throw std::runtime_error("BAR1 is absent");
         }
 
-        _bar2 = _dev.get_bar(2);
-        if (_bar2 == nullptr) {
+        _bar1 = _dev.get_bar(2);
+        if (_bar1 == nullptr) {
             throw std::runtime_error("BAR2 is absent");
         }
     }
@@ -167,5 +168,16 @@ namespace vmware {
         _bar1->write(VMXNET3_BAR1_UVRS, VMXNET3_UPT_VERSION);
     }
 
+    void vmxnet3::write_cmd(u32 cmd)
+    {
+        _bar1->write(VMXNET3_BAR1_CMD, cmd);
+    }
+
+    u32 vmxnet3::read_cmd(u32 cmd)
+    {
+        write_cmd(cmd);
+        mb();
+        return _bar1->read(VMXNET3_BAR1_CMD);
+    }
 }
 
