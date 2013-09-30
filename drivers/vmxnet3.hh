@@ -15,86 +15,33 @@
 #include <bsd/sys/sys/mbuf.h>
 
 #include "drivers/vmware.hh"
+#include "drivers/vmxnet3-queues.hh"
 #include "drivers/pci-device.hh"
+#include "mempool.hh"
 
 namespace vmware {
 
-    enum {
-        //General HW configuration
-        VMXNET3_REVISION = 1,
-        VMXNET3_UPT_VERSION = 1,
-        VMXNET3_VERSIONS_MASK = 1,
-
-        VMXNET3_REV1_MAGIC = 0XBABEFEE1,
-
-        VMXNET3_GOS_FREEBSD = 0x10,
-        VMXNET3_GOS_32BIT = 0x01,
-        VMXNET3_GOS_64BIT = 0x02,
-
-        //Mimic FreeBSD driver behavior
-        VMXNET3_DRIVER_VERSION = 0x00010000,
-        //TODO: Should we be more specific?
-        VMXNET3_GUEST_OS_VERSION = 0x01,
-
-        VMXNET3_MAX_TX_QUEUES = 8,
-        VMXNET3_MAX_RX_QUEUES = 16,
-        VMXNET3_MAX_INTRS = VMXNET3_MAX_TX_QUEUES + VMXNET3_MAX_RX_QUEUES + 1
-    };
-
-    class vmxnet3_drv_shared final {
+    class vmxnet3_txqueue : public vmxnet3_txq_shared {
     public:
-        vmxnet3_drv_shared();
-        ~vmxnet3_drv_shared();
+        vmxnet3_txqueue();
     private:
 
-        void init_layout(void);
+        enum {
+            //Queue descriptors alignment
+            VMXNET3_DESCR_ALIGN = 512
+        };
 
-        typedef struct {
-            u32 magic;
-            u32 pad1;
+        void attach_descriptors(void);
 
-            /* Misc. control */
-            u32 version;		/* Driver version */
-            u32 guest;			/* Guest OS */
-            u32 vmxnet3_revision;	/* Supported VMXNET3 revision */
-            u32 upt_version;		/* Supported UPT version */
-            u64 upt_features;
-            u64 driver_data;
-            u64 queue_shared;
-            u32 driver_data_len;
-            u32 queue_shared_len;
-            u32 mtu;
-            u16 nrxsg_max;
-            u8  ntxqueue;
-            u8  nrxqueue;
-            u32 reserved1[4];
+        memory::phys_contiguious_memory _tx_descr_mem;
+        memory::phys_contiguious_memory _tx_compdescr_mem;
 
-            /* Interrupt control */
-            u8  automask;
-            u8  nintr;
-            u8  evintr;
-            u8  modlevel[VMXNET3_MAX_INTRS];
-            u32 ictrl;
-            u32 reserved2[2];
+        vmxnet3_tx_descr        _tx_desc[VMXNET3_MAX_TX_NDESC];
+        vmxnet3_tx_compdesc     _tx_comp_desc[VMXNET3_MAX_TX_NCOMPDESC];
+    };
 
-            /* Receive filter parameters */
-            u32 rxmode;
-            u16 mcast_tablelen;
-            u16 pad2;
-            u64 mcast_table;
-            u32 vlan_filter[4096 / 32];
-
-            struct {
-                u32 version;
-                u32 len;
-                u64 paddr;
-            }   rss, pm, plugin;
-
-            u32 event;
-            u32 reserved3[5];
-        } __packed vmxnet3_shared_layout;
-
-        vmxnet3_shared_layout *_layout;
+    class vmxnet3_rxqueue : public vmxnet3_rxq_shared {
+    private:
     };
 
     class vmxnet3 : public vmware_driver {
@@ -112,21 +59,39 @@ namespace vmware {
         enum {
             VMXNET3_DEVICE_ID=0x07B0,
 
+            //Queues number
+            //TODO: Make configurable?
+            VMXNET3_TX_QUEUES = 1,
+            VMXNET3_RX_QUEUES = 1,
+
             //BAR1 registers
             VMXNET3_BAR1_VRRS=0x000,    // Revision
             VMXNET3_BAR1_UVRS=0x008,    // UPT version
+
+            //Shared memory alignment
+            VMXNET3_DRIVER_SHARED_ALIGN = 1,
+            VMXNET3_QUEUES_SHARED_ALIGN = 128,
         };
 
         void parse_pci_config(void);
         void do_version_handshake(void);
+        void attach_queues_shared(void);
 
         //maintains the vmxnet3 instance number for multiple adapters
         static int _instance;
         int _id;
 
+        //Shared memory
         pci::bar *_bar1 = nullptr;
         pci::bar *_bar2 = nullptr;
-        vmxnet3_drv_shared _drvshared;
+
+        memory::phys_contiguious_memory _drv_shared_mem;
+        vmxnet3_drv_shared _drv_shared;
+
+        memory::phys_contiguious_memory _queues_shared_mem;
+
+        vmxnet3_txqueue _txq[VMXNET3_MAX_TX_QUEUES];
+        vmxnet3_rxqueue _rxq[VMXNET3_RX_QUEUES];
     };
 }
 

@@ -15,7 +15,6 @@
 #include "drivers/pci-device.hh"
 #include "interrupt.hh"
 
-#include "mempool.hh"
 #include "mmu.hh"
 
 #include <sstream>
@@ -56,44 +55,56 @@ namespace vmware {
     #define vmxnet3_w(...)   tprintf_w(vmxnet3_tag, __VA_ARGS__)
     #define vmxnet3_e(...)   tprintf_e(vmxnet3_tag, __VA_ARGS__)
 
-    vmxnet3_drv_shared::vmxnet3_drv_shared()
+    template<class T> void slice_memory(void *&va, T &holder)
     {
-        _layout = static_cast<vmxnet3_shared_layout*>
-            (memory::alloc_phys_contiguous_aligned(sizeof(*_layout), 1));
-
-        if(!_layout)
-            throw std::runtime_error("VMXNET3 driver shared area allocation failed");
-
-        init_layout();
+        for (auto &e : holder) {
+            e.attach(va);
+            va += e.size();
+        }
     }
 
-    vmxnet3_drv_shared::~vmxnet3_drv_shared()
+    vmxnet3_txqueue::vmxnet3_txqueue()
+        : _tx_descr_mem(vmxnet3_tx_descr::size() * VMXNET3_MAX_TX_NDESC,
+                        VMXNET3_DESCR_ALIGN)
+        , _tx_compdescr_mem(vmxnet3_tx_compdesc::size() * VMXNET3_MAX_TX_NCOMPDESC,
+                            VMXNET3_DESCR_ALIGN)
     {
-        memory::free_phys_contiguous_aligned(_layout);
+        attach_descriptors();
     }
 
-    void vmxnet3_drv_shared::init_layout()
+    void vmxnet3_txqueue::attach_descriptors(void)
     {
-        memset(_layout, 0, sizeof(*_layout));
+        void *va = _tx_descr_mem.get_va();
+        slice_memory(va, _tx_desc);
 
-        _layout->magic = VMXNET3_REV1_MAGIC;
-
-        // DriverInfo
-        _layout->version = VMXNET3_DRIVER_VERSION;
-        _layout->guest = VMXNET3_GOS_FREEBSD | VMXNET3_GUEST_OS_VERSION |
-        (sizeof(void*) == sizeof(u32) ? VMXNET3_GOS_32BIT : VMXNET3_GOS_32BIT);
-
-        _layout->vmxnet3_revision = VMXNET3_REVISION;
-        _layout->upt_version = VMXNET3_UPT_VERSION;
+        void *cva = _tx_compdescr_mem.get_va();
+        slice_memory(cva, _tx_comp_desc);
     }
 
     vmxnet3::vmxnet3(pci::device& dev)
         : vmware_driver(dev)
+        , _drv_shared_mem(vmxnet3_drv_shared::size(),
+                          VMXNET3_DRIVER_SHARED_ALIGN)
+        , _queues_shared_mem(vmxnet3_txq_shared::size() * VMXNET3_TX_QUEUES +
+                             vmxnet3_rxq_shared::size() * VMXNET3_RX_QUEUES,
+                             VMXNET3_QUEUES_SHARED_ALIGN)
     {
         vmxnet3_i("VMXNET3 INSTANCE");
         _id = _instance++;
+
         parse_pci_config();
         do_version_handshake();
+
+        _drv_shared.attach(_drv_shared_mem.get_va());
+        attach_queues_shared();
+    }
+
+    void vmxnet3::attach_queues_shared(void)
+    {
+        auto *va = _queues_shared_mem.get_va();
+
+        slice_memory(va, _txq);
+        slice_memory(va, _rxq);
     }
 
     hw_driver* vmxnet3::probe(hw_device* dev)

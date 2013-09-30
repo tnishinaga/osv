@@ -17,16 +17,97 @@
 
 namespace vmware {
 
+    enum {
+        //Generic HW configuration
+        VMXNET3_REVISION = 1,
+        VMXNET3_UPT_VERSION = 1,
+        VMXNET3_VERSIONS_MASK = 1,
+
+        VMXNET3_REV1_MAGIC = 0XBABEFEE1,
+
+        VMXNET3_GOS_FREEBSD = 0x10,
+        VMXNET3_GOS_32BIT = 0x01,
+        VMXNET3_GOS_64BIT = 0x02,
+
+        //Mimic FreeBSD driver behavior
+        VMXNET3_DRIVER_VERSION = 0x00010000,
+        //TODO: Should we be more specific?
+        VMXNET3_GUEST_OS_VERSION = 0x01,
+
+        //Queues parameters
+        VMXNET3_MAX_TX_QUEUES = 8,
+        VMXNET3_MAX_RX_QUEUES = 16,
+        VMXNET3_RXRINGS_PERQ = 2,
+
+        VMXNET3_MAX_INTRS = VMXNET3_MAX_TX_QUEUES + VMXNET3_MAX_RX_QUEUES + 1,
+
+        VMXNET3_MAX_TX_NDESC = 512,
+        VMXNET3_MAX_RX_NDESC = 256,
+        VMXNET3_MAX_TX_NCOMPDESC = VMXNET3_MAX_TX_NDESC,
+        VMXNET3_MAX_RX_NCOMPDESC = VMXNET3_MAX_RX_NDESC * VMXNET3_RXRINGS_PERQ
+    };
+
     template <class T> class vmxnet3_layout_holder {
     public:
-        vmxnet3_layout_holder(void* storage)
-            : _layout(static_cast<T *>(storage)) {
-                memset(_layout, 0, sizeof(*_layout));
+        void attach(void* storage) {
+            _layout = static_cast<T *>(storage);
+            memset(_layout, 0, sizeof(*_layout));
         }
 
         static size_t size() { return sizeof(*_layout); }
     protected:
-        T *_layout;
+        T *_layout = nullptr;
+    };
+
+    typedef struct {
+        u32 magic;
+        u32 pad1;
+
+        // Misc. control
+        u32 version;            // Driver version
+        u32 guest;              // Guest OS
+        u32 vmxnet3_revision;   // Supported VMXNET3 revision
+        u32 upt_version;        // Supported UPT versions
+        u64 upt_features;
+        u64 driver_data;
+        u64 queue_shared;
+        u32 driver_data_len;
+        u32 queue_shared_len;
+        u32 mtu;
+        u16 nrxsg_max;
+        u8  ntxqueue;
+        u8  nrxqueue;
+        u32 reserved1[4];
+
+        // Interrupt control
+        u8  automask;
+        u8  nintr;
+        u8  evintr;
+        u8  modlevel[VMXNET3_MAX_INTRS];
+        u32 ictrl;
+        u32 reserved2[2];
+
+        // Receive filter parameters
+        u32 rxmode;
+        u16 mcast_tablelen;
+        u16 pad2;
+        u64 mcast_table;
+        u32 vlan_filter[4096 / 32];
+
+        struct {
+            u32 version;
+            u32 len;
+            u64 paddr;
+        }   rss, pm, plugin;
+
+        u32 event;
+        u32 reserved3[5];
+    } __packed vmxnet3_shared_layout;
+
+    class vmxnet3_drv_shared
+        : public vmxnet3_layout_holder<vmxnet3_shared_layout> {
+    public:
+        void attach(void* storage);
     };
 
     typedef struct {
@@ -51,9 +132,6 @@ namespace vmware {
 
     class vmxnet3_tx_descr
         : public vmxnet3_layout_holder<vmxnet3_tx_descr_layout> {
-    public:
-        vmxnet3_tx_descr(void* storage)
-            : vmxnet3_layout_holder(storage) {}
     };
 
     typedef struct {
@@ -70,9 +148,6 @@ namespace vmware {
 
     class vmxnet3_tx_compdesc
         : public vmxnet3_layout_holder<vmxnet3_tx_compdesc_layout> {
-    public:
-        vmxnet3_tx_compdesc(void* storage)
-            : vmxnet3_layout_holder(storage) {}
     };
 
     typedef struct {
@@ -89,9 +164,6 @@ namespace vmware {
 
     class vmxnet3_rx_desc
         : public vmxnet3_layout_holder<vmxnet3_rx_desc_layout> {
-    public:
-        vmxnet3_rx_desc(void* storage)
-            : vmxnet3_layout_holder(storage) {}
     };
 
     typedef struct {
@@ -126,9 +198,6 @@ namespace vmware {
 
     class vmxnet3_rx_compdesc
         : public vmxnet3_layout_holder<vmxnet3_rx_compdesc_layout> {
-    public:
-        vmxnet3_rx_compdesc(void* storage)
-            : vmxnet3_layout_holder(storage) {}
     };
 
     struct UPT1_TxStats {
@@ -175,9 +244,6 @@ namespace vmware {
 
     class vmxnet3_txq_shared
         : public vmxnet3_layout_holder<vmxnet3_txq_shared_layout> {
-    public:
-        vmxnet3_txq_shared(void* storage)
-            : vmxnet3_layout_holder(storage) {}
     };
 
     struct UPT1_RxStats {
@@ -219,9 +285,6 @@ namespace vmware {
 
     class vmxnet3_rxq_shared
         : public vmxnet3_layout_holder<vmxnet3_rxq_shared_layout> {
-    public:
-        vmxnet3_rxq_shared(void* storage)
-            : vmxnet3_layout_holder(storage) {}
     };
 
 }
