@@ -114,25 +114,31 @@ vmxnet3::vmxnet3(pci::device &dev)
     start_isr_thread();
 }
 
+template <class T>
+void vmxnet3::fill_intr_requirement(T *entry, std::vector<vmxnet3_intr_mgr::binding> &ints)
+{
+    vmxnet3_intr_mgr::binding b;
+
+    b.thread = entry->get_isr_thread();
+    b.assigned_idx = [entry] (unsigned idx) { entry->set_intr_idx(idx); };
+    ints.push_back(b);
+}
+
+template <class T>
+void vmxnet3::fill_intr_requirements(T &entries, std::vector<vmxnet3_intr_mgr::binding> &ints)
+{
+    for (auto &entry : entries) {
+        fill_intr_requirement(&entry, ints);
+    }
+}
+
 void vmxnet3::allocate_interrupts(void)
 {
     std::vector<vmxnet3_intr_mgr::binding> ints;
 
-    vmxnet3_intr_mgr::binding binding;
-
-    //Describe transmit queues interrupts
-    for (auto &queue : _txq) {
-        binding.thread = queue.get_isr_thread();
-        ints.push_back(binding);
-    }
-
-    for (auto &queue : _rxq) {
-        binding.thread = queue.get_isr_thread();
-        ints.push_back(binding);
-    }
-
-    binding.thread = get_isr_thread();
-    ints.push_back(binding);
+    fill_intr_requirements(_txq, ints);
+    fill_intr_requirements(_rxq, ints);
+    fill_intr_requirement(this, ints);
 
     auto intr_cfg = read_cmd(VMXNET3_CMD_GET_INTRCFG);
     _int_mgr.easy_register(intr_cfg, ints);
@@ -150,10 +156,12 @@ void vmxnet3::fill_driver_shared(void)
 {
     _drv_shared.set_driver_data(mmu::virt_to_phys(this), sizeof(*this));
     _drv_shared.set_queue_shared(_queues_shared_mem.get_pa(),
-                                    _queues_shared_mem.get_size());
+                                 _queues_shared_mem.get_size());
     _drv_shared.set_max_sg_len(VMXNET3_MAX_RX_SEGS);
     _drv_shared.set_mcast_table(_mcast_list.get_pa(),
                                 _mcast_list.get_size());
+    _drv_shared.set_intr_config(static_cast<u8>(_int_mgr.interrupts_number()),
+                                static_cast<u8>(_int_mgr.is_automask()));
 }
 
 hw_driver* vmxnet3::probe(hw_device* dev)
@@ -222,6 +230,7 @@ void vmxnet3_intr_mgr::easy_register_msix(const std::vector<binding> &bindings)
 
         if(_is_active_mask) {
             mb.isr = [this, idx] { _disable_int(idx); };
+            b.assigned_idx(idx);
         }
 
         msix_vec.push_back(mb);
@@ -232,6 +241,7 @@ void vmxnet3_intr_mgr::easy_register_msix(const std::vector<binding> &bindings)
     }
 
     _msix_registered = true;
+    _num_interrupts = bindings.size();
 }
 
 void vmxnet3_intr_mgr::easy_register(u32 intr_cfg,
@@ -265,6 +275,8 @@ void vmxnet3_intr_mgr::easy_unregister(void)
 {
     if(_msix_registered) {
         _msi.easy_unregister();
+        _msix_registered = false;
+        _num_interrupts = 0;
     }
 }
 

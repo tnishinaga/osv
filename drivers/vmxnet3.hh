@@ -53,12 +53,15 @@ namespace vmware {
     private:
         virtual void isr(void) = 0;
         sched::thread isr_thread;
+        unsigned _intr_idx = 0;
     };
 
     class vmxnet3_txqueue : public vmxnet3_txq_shared
                           , public vmxnet3_isr_thread {
     public:
         vmxnet3_txqueue();
+        void set_intr_idx(unsigned idx) { _layout->intr_idx = static_cast<u8>(idx); }
+
     private:
         virtual void isr(void) {};
 
@@ -73,6 +76,8 @@ namespace vmware {
                           , public vmxnet3_isr_thread {
     public:
         vmxnet3_rxqueue();
+        void set_intr_idx(unsigned idx) { _layout->intr_idx = static_cast<u8>(idx); }
+
     private:
         virtual void isr(void) {};
 
@@ -85,9 +90,11 @@ namespace vmware {
 
     class vmxnet3_intr_mgr {
     public:
-        // entry -> thread to wake
         struct binding {
+            //Thread to wake
             sched::thread *thread;
+            //Callback to notify about interrupt index assigned for this thread
+            std::function<void (unsigned idx)> assigned_idx;
         };
 
         vmxnet3_intr_mgr(pci::function *dev,
@@ -102,6 +109,9 @@ namespace vmware {
                            const std::vector<binding>& bindings);
         void easy_register_msix(const std::vector<binding>& bindings);
         void easy_unregister(void);
+
+        bool is_automask() const { return _is_auto_mask; }
+        unsigned interrupts_number() const { return _num_interrupts; }
     private:
         enum {
             // Interrupt types
@@ -125,6 +135,7 @@ namespace vmware {
         bool _is_auto_mask = false;
         bool _is_active_mask = false;
         bool _msix_registered = false;
+        unsigned _num_interrupts = 0;
         std::function<void (unsigned idx)> _disable_int;
     };
 
@@ -172,6 +183,12 @@ namespace vmware {
         void fill_driver_shared(void);
         void allocate_interrupts(void);
 
+        template <class T>
+        static void fill_intr_requirement(T *q, std::vector<vmxnet3_intr_mgr::binding> &ints);
+        template <class T>
+        static void fill_intr_requirements(T &q, std::vector<vmxnet3_intr_mgr::binding> &ints);
+
+        void set_intr_idx(unsigned idx) { _drv_shared.set_evt_intr_idx(static_cast<u8>(idx)); }
         void disable_interrupt(unsigned idx) {/*TODO: implement me*/}
         virtual void isr(void) {};
 
