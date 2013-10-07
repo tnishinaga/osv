@@ -117,6 +117,10 @@ namespace vmware {
             { _layout->nrxsg_max = num; }
         void set_mcast_table(mmu::phys pa, u32 len)
             { _layout->mcast_table = pa; _layout->mcast_tablelen = len; }
+        void set_evt_intr_idx(u8 idx)
+            { _layout->evintr = idx; }
+        void set_intr_config(u8 intr_num, u8 automask)
+            { _layout->nintr = intr_num; _layout->automask = automask; }
     };
 
     typedef struct {
