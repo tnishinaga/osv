@@ -37,7 +37,6 @@ public:
     pci::device& pci_device() { return _dev; }
 protected:
     pci::device& _dev;
-    interrupt_manager _msi;
 private:
     void parse_pci_config(void);
 };

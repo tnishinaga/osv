@@ -18,7 +18,6 @@ namespace vmware {
 vmware_driver::vmware_driver(pci::device& dev)
     : hw_driver()
     , _dev(dev)
-    , _msi(&dev)
 {
     parse_pci_config();
     _dev.set_bus_master(true);

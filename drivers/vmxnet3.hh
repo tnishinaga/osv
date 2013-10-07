@@ -24,7 +24,6 @@ namespace vmware {
     template<class DescT, int NDesc>
         class vmxnet3_ring {
         public:
-
             vmxnet3_ring()
                 : _desc_mem(DescT::size() * NDesc, VMXNET3_DESC_ALIGN)
             {
@@ -34,9 +33,7 @@ namespace vmware {
 
             mmu::phys get_desc_pa() const { return _desc_mem.get_pa(); }
             static u32 get_desc_num() { return NDesc; }
-
         private:
-
             enum {
                 //Queue descriptors alignment
                 VMXNET3_DESC_ALIGN = 512
@@ -46,12 +43,24 @@ namespace vmware {
             DescT      _desc[NDesc];
         };
 
-    class vmxnet3_txqueue : public vmxnet3_txq_shared {
+    class vmxnet3_isr_thread {
     public:
+        vmxnet3_isr_thread()
+            : isr_thread([this] { this->isr(); }) {};
 
-        vmxnet3_txqueue();
-
+        sched::thread *get_isr_thread(void) { return &isr_thread; };
+        void start_isr_thread(void) { isr_thread.start(); }
     private:
+        virtual void isr(void) = 0;
+        sched::thread isr_thread;
+    };
+
+    class vmxnet3_txqueue : public vmxnet3_txq_shared
+                          , public vmxnet3_isr_thread {
+    public:
+        vmxnet3_txqueue();
+    private:
+        virtual void isr(void) {};
 
         typedef vmxnet3_ring<vmxnet3_tx_desc, VMXNET3_MAX_TX_NDESC> _cmdRingT;
         typedef vmxnet3_ring<vmxnet3_tx_compdesc, VMXNET3_MAX_TX_NCOMPDESC> _compRingT;
@@ -60,12 +69,12 @@ namespace vmware {
         _compRingT _comp_ring;
     };
 
-    class vmxnet3_rxqueue : public vmxnet3_rxq_shared {
+    class vmxnet3_rxqueue : public vmxnet3_rxq_shared
+                          , public vmxnet3_isr_thread {
     public:
-
         vmxnet3_rxqueue();
-
     private:
+        virtual void isr(void) {};
 
         typedef vmxnet3_ring<vmxnet3_rx_desc, VMXNET3_MAX_RX_NDESC> _cmdRingT;
         typedef vmxnet3_ring<vmxnet3_rx_compdesc, VMXNET3_MAX_RX_NCOMPDESC> _compRingT;
@@ -74,18 +83,61 @@ namespace vmware {
         _compRingT _comp_ring;
     };
 
-    class vmxnet3 : public vmware_driver {
+    class vmxnet3_intr_mgr {
     public:
+        // entry -> thread to wake
+        struct binding {
+            sched::thread *thread;
+        };
 
+        vmxnet3_intr_mgr(pci::function *dev,
+                         std::function<void (unsigned idx)> disable_int)
+            : _msi(dev)
+            , _disable_int(disable_int)
+            {}
+
+        ~vmxnet3_intr_mgr() { easy_unregister(); }
+
+        void easy_register(u32 intr_cfg,
+                           const std::vector<binding>& bindings);
+        void easy_register_msix(const std::vector<binding>& bindings);
+        void easy_unregister(void);
+    private:
+        enum {
+            // Interrupt types
+            VMXNET3_IT_AUTO = 0x00,
+            VMXNET3_IT_LEGACY = 0x01,
+            VMXNET3_IT_MSI = 0x02,
+            VMXNET3_IT_MSIX = 0x03,
+
+            VMXNET3_IT_TYPE_MASK  = 0x03,
+            VMXNET3_IT_MODE_MASK  = 0x03,
+            VMXNET3_IT_MODE_SHIFT = 0x02,
+
+            // Interrupt mask mode
+            VMXNET3_IMM_AUTO        = 0x00,
+            VMXNET3_IMM_ACTIVE      = 0x01,
+            VMXNET3_IMM_LAZY        = 0x02
+        };
+
+        interrupt_manager _msi;
+
+        bool _is_auto_mask = false;
+        bool _is_active_mask = false;
+        bool _msix_registered = false;
+        std::function<void (unsigned idx)> _disable_int;
+    };
+
+    class vmxnet3 : public vmware_driver
+                  , protected vmxnet3_isr_thread {
+    public:
         explicit vmxnet3(pci::device& dev);
         virtual ~vmxnet3() {};
 
         virtual const std::string get_name(void) { return std::string("vmxnet3"); }
 
         static hw_driver* probe(hw_device* dev);
-
     private:
-
         enum {
             VMXNET3_DEVICE_ID=0x07B0,
 
@@ -98,8 +150,8 @@ namespace vmware {
             VMXNET3_BAR1_UVRS = 0x008,    // UPT version
             VMXNET3_BAR1_CMD  = 0x020,    // Command
 
-            VMXNET3_MULTICAST_MAX = 32,
-            VMXNET3_MAX_RX_SEGS = 17,
+            //VMXNET3 commands
+            VMXNET3_CMD_GET_INTRCFG = 0xF00D0008,  // Get interrupt config
 
             //Shared memory alignment
             VMXNET3_DRIVER_SHARED_ALIGN = 1,
@@ -107,13 +159,21 @@ namespace vmware {
             VMXNET3_MULTICAST_ALIGN = 32,
 
             //Generic definitions
-            VMXNET3_ETH_ALEN = 6
+            VMXNET3_ETH_ALEN = 6,
+
+            //Internal device parameters
+            VMXNET3_MULTICAST_MAX = 32,
+            VMXNET3_MAX_RX_SEGS = 17
         };
 
         void parse_pci_config(void);
         void do_version_handshake(void);
         void attach_queues_shared(void);
         void fill_driver_shared(void);
+        void allocate_interrupts(void);
+
+        void disable_interrupt(unsigned idx) {/*TODO: implement me*/}
+        virtual void isr(void) {};
 
         void write_cmd(u32 cmd);
         u32 read_cmd(u32 cmd);
@@ -135,6 +195,9 @@ namespace vmware {
         vmxnet3_rxqueue _rxq[VMXNET3_RX_QUEUES];
 
         memory::phys_contiguious_memory _mcast_list;
+
+        //Interrupt manager
+        vmxnet3_intr_mgr _int_mgr;
     };
 }
 
