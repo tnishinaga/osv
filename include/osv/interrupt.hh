@@ -70,6 +70,8 @@ public:
     // 3. Setup entries
     // 4. Unmask interrupts
     bool easy_register(std::initializer_list<msix_binding> bindings);
+    bool easy_register(std::vector<msix_binding> bindings);
+
     void easy_unregister();
 
     /////////////////////
@@ -85,6 +87,9 @@ public:
     bool unmask_interrupts(const std::vector<msix_vector*>& vectors);
 
 private:
+    template <class T>
+    bool easy_register(T bindings);
+
     pci::function* _dev;
     // Used by the easy interface
     std::vector<msix_vector*> _easy_vectors;
