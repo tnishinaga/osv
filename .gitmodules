@@ -22,3 +22,6 @@
 [submodule "mgmt"]
 	path = mgmt
 	url = ../../cloudius-systems/mgmt.git
+[submodule "external/mruby"]
+	path = external/mruby
+	url = https://github.com/mruby/mruby
