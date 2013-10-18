@@ -76,4 +76,6 @@
 /libzfs.so: libzfs.so
 /zfs.so: zfs.so
 /tools/mkfs.so: tools/mkfs/mkfs.so
+/mirb.so: mirb.so
+/mruby.so: mruby.so
 

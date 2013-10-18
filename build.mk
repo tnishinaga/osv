@@ -27,13 +27,13 @@ post-includes-bsd += -isystem $(src)/bsd/
 
 # $(call compiler-flag, -ffoo, option, file)
 #     returns option if file builds with -ffoo, empty otherwise
-compiler-flag = $(shell $(CXX) -Werror $1 -o /dev/null -c $3  > /dev/null 2>&1 && echo $2)
+compiler-flag = $(shell $(CXX) $1 -o /dev/null -c $3  > /dev/null 2>&1 && echo $2)
 
 compiler-specific := $(call compiler-flag, -std=gnu++11, -DHAVE_ATTR_COLD_LABEL, $(src)/compiler/attr/cold-label.cc)
 
 kernel-defines = -D_KERNEL
 
-COMMON = $(autodepend) -g -Wall -Wno-pointer-arith -Werror -Wformat=0 \
+COMMON = $(autodepend) -g -Wall -Wno-pointer-arith -Wformat=0 \
 	-D __BSD_VISIBLE=1 -U _FORTIFY_SOURCE -fno-stack-protector $(INCLUDES) \
 	$(kernel-defines) \
 	-fno-omit-frame-pointer $(compiler-specific) \
@@ -533,6 +533,7 @@ objects += core/run.o
 
 include $(src)/fs/build.mk
 include $(src)/libc/build.mk
+include $(src)/mruby/build.mk
 
 objects += $(addprefix fs/, $(fs))
 objects += $(addprefix libc/, $(libc))
@@ -596,7 +597,7 @@ $(jni): INCLUDES += -I /usr/lib/jvm/java/include -I /usr/lib/jvm/java/include/li
 
 bootfs.bin: scripts/mkbootfs.py bootfs.manifest $(tests) $(tools) \
 		tests/testrunner.so java/java.so java/runjava.jar \
-		zpool.so zfs.so
+		zpool.so zfs.so mruby.so mirb.so
 	$(call quiet, $(src)/scripts/mkbootfs.py -o $@ -d $@.d -m $(src)/bootfs.manifest \
 		-D jdkbase=$(jdkbase) -D gccbase=$(gccbase) -D \
 		glibcbase=$(glibcbase) -D miscbase=$(miscbase), MKBOOTFS $@)
