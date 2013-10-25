@@ -1,5 +1,5 @@
-mruby-objects = mruby/mruby.o mruby/libmruby.a
-mirb-objects = mruby/mirb.o mruby/libmruby.a
+mruby-objects = mruby/mruby.o mruby/libmruby.a mruby/libffi_pic.a
+mirb-objects = mruby/mirb.o mruby/libmruby.a mruby/libffi_pic.a
 
 define mruby-includes
   external/mruby/src
