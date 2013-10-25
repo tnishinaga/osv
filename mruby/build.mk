@@ -25,11 +25,17 @@ mruby/libmruby.a:
 	mkdir -p mruby/
 	cp ../../external/mruby/build/host/lib/libmruby.a mruby/
 
-mruby/mruby.o:
-	$(CC) $(CFLAGS) -c -o $@ ../../external/mruby/mrbgems/mruby-bin-mruby/tools/mruby/mruby.c
+mruby/mruby.c: mruby/libmruby.a
+	ln -sf ../../../external/mruby/mrbgems/mruby-bin-mruby/tools/mruby/mruby.c mruby/
 
-mruby/mirb.o:
-	$(CC) $(CFLAGS) -c -o $@ ../../external/mruby/mrbgems/mruby-bin-mirb/tools/mirb/mirb.c
+mruby/mirb.c: mruby/libmruby.a
+	ln -sf ../../../external/mruby/mrbgems/mruby-bin-mirb/tools/mirb/mirb.c mruby/
+
+mruby/mruby.o: mruby/mruby.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+mruby/mirb.o: mruby/mirb.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 mruby.so: $(mruby-objects)
 	$(makedir)
