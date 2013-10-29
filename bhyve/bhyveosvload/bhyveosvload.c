@@ -88,17 +88,17 @@ __FBSDID("$FreeBSD$");
 
 static char *host_base = "/";
 static struct termios term, oldterm;
-static int disk_fd = -1;
+int disk_fd = -1;
+//static int disk_fd = -1;
 
-static char *vmname, *progname, *loader_elf;
+static char *vmname, *progname;
 static struct vmctx *ctx;
 
 static uint64_t gdtbase, cr3, rsp;
 
 static void cb_exit(void *arg, int v);
 
-char cmdline[128] = "java.so -jar /usr/mgmt/web-1.0.0.jar app prod";
-extern int osv_load(struct loader_callbacks *cb, char *image, char *cmdline);
+extern int osv_load(struct loader_callbacks *cb, uint64_t mem_size);
 
 /*
  * Console i/o callbacks
@@ -556,25 +556,29 @@ usage(void)
 {
 
 	fprintf(stderr,
-		"usage: %s [-m mem-size] [-h <host-path>] "
-		"<loader_elf> <vmname>\n", progname);
+		"usage: %s [-m mem-size][-d <disk-path>] [-h <host-path>] "
+		"<vmname>\n", progname);
 	exit(1);
 }
 
 int
 main(int argc, char** argv)
 {
-	void *h;
-	void (*func)(struct loader_callbacks *, void *, int, int);
 	uint64_t mem_size;
 	int opt, error;
+	char *disk_image;
 
 	progname = argv[0];
 
 	mem_size = 256 * MB;
+	disk_image = NULL;
 
 	while ((opt = getopt(argc, argv, "d:h:m:")) != -1) {
 		switch (opt) {
+		case 'd':
+			disk_image = optarg;
+			break;
+
 		case 'h':
 			host_base = optarg;
 			break;
@@ -595,8 +599,7 @@ main(int argc, char** argv)
 	if (argc != 1)
 		usage();
 
-	loader_elf = argv[0];
-	vmname = argv[1];
+	vmname = argv[0];
 
 	error = vm_create(vmname);
 	if (error != 0 && errno != EEXIST) {
@@ -622,6 +625,9 @@ main(int argc, char** argv)
 	term.c_lflag &= ~(ICANON|ECHO);
 	term.c_iflag &= ~ICRNL;
 	tcsetattr(0, TCSAFLUSH, &term);
-	if (osv_load(&cb, osv_image, cmdline))
+	if (disk_image) {
+		disk_fd = open(disk_image, O_RDONLY);
+	}
+	if (osv_load(&cb, mem_size))
 		exit(1);
 }

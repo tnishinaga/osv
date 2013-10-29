@@ -61,44 +61,45 @@ __FBSDID("$FreeBSD: user/syuu/bhyve_standalone_guest/usr.sbin/bhyveload/bhyveloa
 #include <sys/param.h>
 
 #include <machine/specialreg.h>
+#include <machine/pc/bios.h>
+#include <machine/vmm.h>
 
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <elf.h>
 
 #include "userboot.h"
 
-struct multiboot_info_type {
-    u32 flags;
-    u32 mem_lower;
-    u32 mem_upper;
-    u32 boot_device;
-    u32 cmdline;
-    u32 mods_count;
-    u32 mods_addr;
-    u32 syms[4];
-    u32 mmap_length;
-    u32 mmap_addr;
-    u32 drives_length;
-    u32 drives_addr;
-    u32 config_table;
-    u32 boot_loader_name;
-    u32 apm_table;
-    u32 vbe_control_info;
-    u32 vbe_mode_info;
-    u16 vbe_mode;
-    u16 vbe_interface_seg;
-    u16 vbe_interface_off;
-    u16 vbe_interface_len;
-} __attribute__((packed));
+#define ADDR_CMDLINE 0x7e00
+#define ADDR_TARGET 0x200000
+#define ADDR_MB_INFO 0x1000
+#define ADDR_E820DATA 0x1100
 
-struct e820ent {
-    u32 ent_size;
-    u64 addr;
-    u64 size;
-    u32 type;
+struct multiboot_info_type {
+    uint32_t flags;
+    uint32_t mem_lower;
+    uint32_t mem_upper;
+    uint32_t boot_device;
+    uint32_t cmdline;
+    uint32_t mods_count;
+    uint32_t mods_addr;
+    uint32_t syms[4];
+    uint32_t mmap_length;
+    uint32_t mmap_addr;
+    uint32_t drives_length;
+    uint32_t drives_addr;
+    uint32_t config_table;
+    uint32_t boot_loader_name;
+    uint32_t apm_table;
+    uint32_t vbe_control_info;
+    uint32_t vbe_mode_info;
+    uint16_t vbe_mode;
+    uint16_t vbe_interface_seg;
+    uint16_t vbe_interface_off;
+    uint16_t vbe_interface_len;
 } __attribute__((packed));
 
 #define MSR_EFER        0xc0000080
@@ -122,6 +123,8 @@ typedef u_int64_t p2_entry_t;
 #define	GUEST_DATA_SEL		2
 #define	GUEST_GDTR_LIMIT	(3 * 8 - 1)
 
+int osv_load(struct loader_callbacks *cb, uint64_t mem_size);
+
 static void
 setup_stand_gdt(uint64_t *gdtr)
 {
@@ -130,60 +133,80 @@ setup_stand_gdt(uint64_t *gdtr)
 	gdtr[GUEST_DATA_SEL] = 0x0000900000000000;
 }
 
+extern int disk_fd;
 int
-osv_load(struct loader_callbacks *cb, char *image, char *cmdline)
+osv_load(struct loader_callbacks *cb, uint64_t mem_size)
 {
 	int i;
-	int fd;
-	struct stat sb;
-	char *buf;
 	uint32_t		stack[1024];
 	p4_entry_t		PT4[512];
 	p3_entry_t		PT3[512];
 	p2_entry_t		PT2[512];
 	uint64_t		gdtr[3];
 	struct multiboot_info_type mb_info;
-	struct e820ent e820[3];
+	struct bios_smap e820data[3];
+	char cmdline[0x3f * 512];
+	void *target;
+	Elf64_Ehdr *elf_image;
+	size_t resid;
 
 	bzero(&mb_info, sizeof(mb_info));
-	bzero(e820, sizeof(e820));
-
-	mb_info.cmdline = 0x7e00;
-	mb_info.mmap_addr = 0x2000;
+	mb_info.cmdline = ADDR_CMDLINE;
+	mb_info.mmap_addr = ADDR_E820DATA;
+	mb_info.mmap_length = sizeof(e820data);
 	if (cb->copyin(NULL, &mb_info, ADDR_MB_INFO, sizeof(mb_info))) {
 		perror("copyin");
 		return (1);
 	}
-	if (cb->copyin(NULL, cmdline, ADDR_CMDLINE, sizeof(cmdline))) {
-		perror("copyin");
-		return (1);
-	}
+	cb->setreg(NULL, VM_REG_GUEST_RBX, ADDR_MB_INFO);
+
+	e820data[0].base = 0x0;
+	e820data[0].length = 654336;
+	e820data[0].type = SMAP_TYPE_MEMORY;
+	e820data[1].base = 0x100000;
+	e820data[1].length = mem_size - 0x100000;
+	e820data[1].type = SMAP_TYPE_MEMORY;
+	e820data[2].base = 0;
+	e820data[2].length = 0;
+	e820data[2].type = 0;
 	if (cb->copyin(NULL, e820data, ADDR_E820DATA, sizeof(e820data))) {
 		perror("copyin");
 		return (1);
 	}
 
-	if ((fd = open(image, O_RDONLY)) < 0) {
-		perror("open");
-		return (1);
+	if (cb->diskread(NULL, 0, 1 * 512, cmdline, 63 * 512, &resid)) {
+		perror("diskread");
 	}
-	if (fstat(fd, &sb)) {
-		perror("fstat");
-		return (1);
-	}
-	buf = alloca(sb.st_size);
-	if (read(fd, buf, sb.st_size) != sb.st_size) {
-		perror("read");
-		return (1);
-	}
-	if (close(fd) < 0) {
-		perror("close");
-		return (1);
-	}
-	if (cb->copyin(NULL, buf, 0x200000, sb.st_size)) {
+	printf("cmdline=%s\n", cmdline);
+	if (cb->copyin(NULL, cmdline, ADDR_CMDLINE, sizeof(cmdline))) {
 		perror("copyin");
 		return (1);
 	}
+
+	target = calloc(1, 0x40 * 512 * 4096);
+	if (!target) {
+		perror("calloc");
+		return (1);
+	}
+#if 0
+	if (cb->diskread(NULL, 0, 0x40 * 512 * 4096, target, 128 * 512, &resid)) {
+		perror("diskread");
+		return (1);
+	}
+#endif
+	ssize_t siz = pread(disk_fd, target, 0x40 * 512 * 4096, 128 * 512);
+	if (siz < 0)
+		perror("pread");
+	if (cb->copyin(NULL, target, ADDR_TARGET, 0x40 * 512 * 4096)) {
+		perror("copyin");
+		return (1);
+	}
+	elf_image = (Elf64_Ehdr *)target;
+	printf("ident:%c%c%c type:%x machine:%x version:%x entry:0x%lx\n",
+		elf_image->e_ident[0], elf_image->e_ident[1], 
+		elf_image->e_ident[2], elf_image->e_type, elf_image->e_machine,
+		elf_image->e_version, elf_image->e_entry);
+	cb->setreg(NULL, VM_REG_GUEST_RBP, ADDR_TARGET);
 
 	bzero(PT4, PAGE_SIZE);
 	bzero(PT3, PAGE_SIZE);
@@ -220,11 +243,11 @@ osv_load(struct loader_callbacks *cb, char *image, char *cmdline)
 	printf("Start @ %#llx ...\n", addr);
 #endif
 
-	cb->copyin(NULL, stack, 0x1000, sizeof(stack));
+	cb->copyin(NULL, stack, 0x1200, sizeof(stack));
 	cb->copyin(NULL, PT4, 0x2000, sizeof(PT4));
 	cb->copyin(NULL, PT3, 0x3000, sizeof(PT3));
 	cb->copyin(NULL, PT2, 0x4000, sizeof(PT2));
-	cb->setreg(NULL, 4, 0x1000);
+	cb->setreg(NULL, 4, 0x1200);
 
 	cb->setmsr(NULL, MSR_EFER, EFER_LMA | EFER_LME);
 	cb->setcr(NULL, 4, CR4_PAE | CR4_VMXE);
@@ -235,7 +258,7 @@ osv_load(struct loader_callbacks *cb, char *image, char *cmdline)
 	cb->copyin(NULL, gdtr, 0x5000, sizeof(gdtr));
         cb->setgdt(NULL, 0x5000, sizeof(gdtr));
 
-	cb->exec(NULL, addr);
+	cb->exec(NULL, elf_image->e_entry);
 	return (0);
 }
 
