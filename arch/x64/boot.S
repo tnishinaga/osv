@@ -9,6 +9,7 @@
 
 .data
 .align 4096
+.global ident_pt_l4
 ident_pt_l4:
     .quad ident_pt_l3 + 0x67
     .rept 511
@@ -26,6 +27,7 @@ ident_pt_l2:
     index = index + 1
     .endr
 
+.global gdt_desc
 gdt_desc:
     .short gdt_end - gdt - 1
     .long gdt
@@ -44,6 +46,7 @@ gdt_end = .
 
 .align 16
 . = . + 4096*4
+.global init_stack_top
 init_stack_top = .
 
 . = . + 4096*10
