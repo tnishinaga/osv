@@ -92,13 +92,13 @@ int disk_fd = -1;
 //static int disk_fd = -1;
 
 static char *vmname, *progname;
-static struct vmctx *ctx;
+struct vmctx *ctx;
 
 static uint64_t gdtbase, cr3, rsp;
 
 static void cb_exit(void *arg, int v);
 
-extern int osv_load(struct loader_callbacks *cb, uint64_t mem_size);
+extern int osv_load(struct loader_callbacks *cb, uint64_t mem_size, char *loader_elf);
 
 /*
  * Console i/o callbacks
@@ -358,25 +358,10 @@ static void
 cb_setreg(void *arg, int r, uint64_t v)
 {
 	int error;
-	enum vm_reg_name vmreg;
 	
-	vmreg = VM_REG_LAST;
-
-	switch (r) {
-	case 4:
-		vmreg = VM_REG_GUEST_RSP;
+	if (r == VM_REG_GUEST_RSP)
 		rsp = v;
-		break;
-	default:
-		break;
-	}
-
-	if (vmreg == VM_REG_LAST) {
-		printf("test_setreg(%d): not implemented\n", r);
-		cb_exit(NULL, USERBOOT_EXIT_QUIT);
-	}
-
-	error = vm_set_register(ctx, BSP, vmreg, v);
+	error = vm_set_register(ctx, BSP, r, v);
 	if (error) {
 		perror("vm_set_register");
 		cb_exit(NULL, USERBOOT_EXIT_QUIT);
@@ -556,7 +541,7 @@ usage(void)
 {
 
 	fprintf(stderr,
-		"usage: %s [-m mem-size][-d <disk-path>] [-h <host-path>] "
+		"usage: %s [-m mem-size][-e loader_elf][-d disk-path] [-h <host-path>] "
 		"<vmname>\n", progname);
 	exit(1);
 }
@@ -566,14 +551,16 @@ main(int argc, char** argv)
 {
 	uint64_t mem_size;
 	int opt, error;
+	char *loader_elf;
 	char *disk_image;
 
 	progname = argv[0];
 
 	mem_size = 256 * MB;
-	disk_image = NULL;
+	loader_elf = "loader.elf";
+	disk_image = "usr.img";
 
-	while ((opt = getopt(argc, argv, "d:h:m:")) != -1) {
+	while ((opt = getopt(argc, argv, "d:h:m:e:")) != -1) {
 		switch (opt) {
 		case 'd':
 			disk_image = optarg;
@@ -587,6 +574,9 @@ main(int argc, char** argv)
 			error = vm_parse_memsize(optarg, &mem_size);
 			if (error != 0)
 				errx(EX_USAGE, "Invalid memsize '%s'", optarg);
+			break;
+		case 'e':
+			loader_elf = optarg;
 			break;
 		case '?':
 			usage();
@@ -628,6 +618,6 @@ main(int argc, char** argv)
 	if (disk_image) {
 		disk_fd = open(disk_image, O_RDONLY);
 	}
-	if (osv_load(&cb, mem_size))
+	if (osv_load(&cb, mem_size, loader_elf))
 		exit(1);
 }
