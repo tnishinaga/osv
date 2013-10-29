@@ -61,7 +61,6 @@ __FBSDID("$FreeBSD: user/syuu/bhyve_standalone_guest/usr.sbin/bhyveload/bhyveloa
 #include <sys/param.h>
 
 #include <machine/specialreg.h>
-#include <machine/pc/bios.h>
 #include <machine/vmm.h>
 #include <x86/segments.h>
 
@@ -105,6 +104,13 @@ struct multiboot_info_type {
     uint16_t vbe_interface_seg;
     uint16_t vbe_interface_off;
     uint16_t vbe_interface_len;
+} __attribute__((packed));
+
+struct e820ent {
+    uint32_t ent_size;
+    uint64_t addr;
+    uint64_t size;
+    uint32_t type;
 } __attribute__((packed));
 
 #define MSR_EFER        0xc0000080
@@ -211,7 +217,7 @@ int
 osv_load(struct loader_callbacks *cb, uint64_t mem_size, char *loader_elf)
 {
 	struct multiboot_info_type mb_info;
-	struct bios_smap e820data[3];
+	struct e820ent e820data[3];
 	char cmdline[0x3f * 512];
 	void *target;
 	size_t resid;
@@ -233,14 +239,17 @@ osv_load(struct loader_callbacks *cb, uint64_t mem_size, char *loader_elf)
 	}
 	cb->setreg(NULL, VM_REG_GUEST_RBX, ADDR_MB_INFO);
 
-	e820data[0].base = 0x0;
-	e820data[0].length = 654336;
-	e820data[0].type = SMAP_TYPE_MEMORY;
-	e820data[1].base = 0x100000;
-	e820data[1].length = mem_size - 0x100000;
-	e820data[1].type = SMAP_TYPE_MEMORY;
-	e820data[2].base = 0;
-	e820data[2].length = 0;
+	e820data[0].ent_size = 20;
+	e820data[0].addr = 0x0;
+	e820data[0].size = 654336;
+	e820data[0].type = 1;
+	e820data[1].ent_size = 20;
+	e820data[1].addr = 0x100000;
+	e820data[1].size = mem_size - 0x100000;
+	e820data[1].type = 1;
+	e820data[2].ent_size = 20;
+	e820data[2].addr = 0;
+	e820data[2].size = 0;
 	e820data[2].type = 0;
 	if (cb->copyin(NULL, e820data, ADDR_E820DATA, sizeof(e820data))) {
 		perror("copyin");
