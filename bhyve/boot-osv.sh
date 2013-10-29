@@ -17,14 +17,11 @@ echo "Destroying the guest if already running"
 /usr/sbin/bhyvectl --destroy --vm=osv0 > /dev/null 2>&1
 
 echo "Loading the guest kernel with /usr/sbin/bhyveload"
-/usr/local/sbin/bhyveosvload -m 1024 -d ../build/release/usr.img osv0
-
-START64=`readelf -s ../build/release/loader.elf |grep -m1 start64|awk '{print $2}'`
-/usr/sbin/bhyvectl --set-rip=$START64 --vm=osv0
+/usr/local/sbin/bhyveosvload -m 1024 -e ../build/release/loader.elf -d ../build/release/usr.img osv0
 
 echo "Booting the guest kernel with /usr/sbin/bhyve"
 echo "FreeBSD 8.* guests may exhibit a few second delay"
-/usr/sbin/bhyve -c 1 -m 1024 -AI -H -P -g 0 \
+/usr/sbin/bhyve -c 1 -m 1024 -AI -H -P -g 0 -e \
 -s 0:0,hostbridge \
 -s 1:0,virtio-net,tap0 \
 -s 2:0,virtio-blk,../build/release/usr.img \

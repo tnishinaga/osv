@@ -63,15 +63,20 @@ __FBSDID("$FreeBSD: user/syuu/bhyve_standalone_guest/usr.sbin/bhyveload/bhyveloa
 #include <machine/specialreg.h>
 #include <machine/pc/bios.h>
 #include <machine/vmm.h>
+#include <x86/segments.h>
 
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <elf.h>
+#include <gelf.h>
+#include <vmmapi.h>
 
 #include "userboot.h"
+
+#define	BSP	0
+#define	DESC_UNUSABLE		0x00010000
 
 #define ADDR_CMDLINE 0x7e00
 #define ADDR_TARGET 0x200000
@@ -123,7 +128,7 @@ typedef u_int64_t p2_entry_t;
 #define	GUEST_DATA_SEL		2
 #define	GUEST_GDTR_LIMIT	(3 * 8 - 1)
 
-int osv_load(struct loader_callbacks *cb, uint64_t mem_size);
+int osv_load(struct loader_callbacks *cb, uint64_t mem_size, char *loader_elf);
 
 static void
 setup_stand_gdt(uint64_t *gdtr)
@@ -133,22 +138,90 @@ setup_stand_gdt(uint64_t *gdtr)
 	gdtr[GUEST_DATA_SEL] = 0x0000900000000000;
 }
 
+extern struct vmctx *ctx;
 extern int disk_fd;
-int
-osv_load(struct loader_callbacks *cb, uint64_t mem_size)
+
+static ssize_t 
+resolv_section_index(Elf *e, char *sec_name)
+{
+	size_t shstrndx;
+	Elf_Scn *scn;
+	int i;
+
+	if (!elf_getshstrndx(e, &shstrndx)) {
+		fprintf(stderr, "elf_getshstrndx:%s\n", elf_errmsg(-1));
+		return (-1);
+	}
+	for (i = 0; (scn = elf_getscn(e, i)); i++) {
+		GElf_Shdr shdr;
+		char *name;
+
+		if (gelf_getshdr(scn, &shdr) != &shdr)
+			return (-1);
+		if (!(name = elf_strptr(e, shstrndx, shdr.sh_name))) {
+			fprintf(stderr, "elf_strptr:%s\n", elf_errmsg(-1));
+			return (-1);
+		}
+		if (!strcmp(sec_name, name))
+			return (i);
+	}
+	return (-1);
+}
+
+static uint64_t
+resolv_symbol_addr(Elf *e, char *sym_name)
 {
 	int i;
-	uint32_t		stack[1024];
-	p4_entry_t		PT4[512];
-	p3_entry_t		PT3[512];
-	p2_entry_t		PT2[512];
-	uint64_t		gdtr[3];
+	ssize_t scndx_sym, scndx_str;
+	Elf_Scn *scn;
+	Elf_Data *data;
+	GElf_Sym sym;
+
+	if ((scndx_sym = resolv_section_index(e, ".symtab")) < 0) {
+		fprintf(stderr, "symtab not found\n");
+		return (NULL);
+	}
+	if ((scndx_str = resolv_section_index(e, ".strtab")) < 0) {
+		fprintf(stderr, "symtab not found\n");
+		return (NULL);
+	}
+	if (!(scn = elf_getscn(e, scndx_sym))) {
+		fprintf(stderr, "elf_getscn:%s\n", elf_errmsg(-1));
+		return (NULL);
+	}
+	if (!(data = elf_getdata(scn, 0))) {
+		fprintf(stderr, "elf_getscn:%s\n", elf_errmsg(-1));
+		return (NULL);
+	}
+	
+	for (i = 0; gelf_getsym(data, i, &sym) == &sym; i++) {
+		char *name;
+
+		if (!(name = elf_strptr(e, scndx_str, sym.st_name))) {
+			fprintf(stderr, "elf_strptr:%s\n", elf_errmsg(-1));
+			return (NULL);
+		}
+		if (!strcmp(sym_name, name))
+			return (sym.st_value);
+	}
+	return (NULL);
+}
+
+int
+osv_load(struct loader_callbacks *cb, uint64_t mem_size, char *loader_elf)
+{
 	struct multiboot_info_type mb_info;
 	struct bios_smap e820data[3];
 	char cmdline[0x3f * 512];
 	void *target;
-	Elf64_Ehdr *elf_image;
 	size_t resid;
+	int elf_fd;
+	Elf *e;
+	uint64_t start64, init_stack_top, ident_pt_l4, gdt_desc;
+	int error;
+	uint64_t desc_base;
+	uint32_t desc_access, desc_limit;
+	uint16_t gsel;
 
 	bzero(&mb_info, sizeof(mb_info));
 	mb_info.cmdline = ADDR_CMDLINE;
@@ -201,64 +274,116 @@ osv_load(struct loader_callbacks *cb, uint64_t mem_size)
 		perror("copyin");
 		return (1);
 	}
-	elf_image = (Elf64_Ehdr *)target;
-	printf("ident:%c%c%c type:%x machine:%x version:%x entry:0x%lx\n",
-		elf_image->e_ident[0], elf_image->e_ident[1], 
-		elf_image->e_ident[2], elf_image->e_type, elf_image->e_machine,
-		elf_image->e_version, elf_image->e_entry);
-	cb->setreg(NULL, VM_REG_GUEST_RBP, ADDR_TARGET);
-
-	bzero(PT4, PAGE_SIZE);
-	bzero(PT3, PAGE_SIZE);
-	bzero(PT2, PAGE_SIZE);
-
-	/*
-	 * Build a scratch stack at physical 0x1000, page tables:
-	 *	PT4 at 0x2000,
-	 *	PT3 at 0x3000,
-	 *	PT2 at 0x4000,
-	 *      gdtr at 0x5000,
-	 */
-
-	/*
-	 * This is kinda brutal, but every single 1GB VM memory segment
-	 * points to the same first 1GB of physical memory.  But it is
-	 * more than adequate.
-	 */
-	for (i = 0; i < 512; i++) {
-		/* Each slot of the level 4 pages points to the same level 3 page */
-		PT4[i] = (p4_entry_t) 0x3000;
-		PT4[i] |= PG_V | PG_RW | PG_U;
-
-		/* Each slot of the level 3 pages points to the same level 2 page */
-		PT3[i] = (p3_entry_t) 0x4000;
-		PT3[i] |= PG_V | PG_RW | PG_U;
-
-		/* The level 2 page slots are mapped with 2MB pages for 1GB. */
-		PT2[i] = i * (2 * 1024 * 1024);
-		PT2[i] |= PG_V | PG_RW | PG_PS | PG_U;
+	if ((elf_fd = open(loader_elf, O_RDONLY, 0)) < 0) {
+		perror ("open");
+		return (1);
 	}
+   	if (elf_version(EV_CURRENT) == EV_NONE) {
+		fprintf(stderr, "elf_version:%s\n", elf_errmsg(-1));
+		return (1);
+	}
+	if (!(e = elf_begin(elf_fd, ELF_C_READ, NULL))) {
+		fprintf(stderr, "elf_begin:%s\n", elf_errmsg(-1));
+		return (1);
+	}
+	start64 = resolv_symbol_addr(e, "start64");
+	init_stack_top = resolv_symbol_addr(e, "init_stack_top");
+	ident_pt_l4 = resolv_symbol_addr(e, "ident_pt_l4");
+	gdt_desc = resolv_symbol_addr(e, "gdt_desc");
+	printf("start64:0x%lx\n", start64);
+	printf("init_stack_top:0x%lx\n", init_stack_top);
+	printf("ident_pt_l4:0x%lx\n", ident_pt_l4);
+	printf("gdt_desc:0x%lx\n", gdt_desc);
 
-#ifdef DEBUG
-	printf("Start @ %#llx ...\n", addr);
-#endif
+	desc_base = 0;
+	desc_limit = 0;
+	desc_access = 0x0000209B;
+	error = vm_set_desc(ctx, BSP, VM_REG_GUEST_CS,
+			    desc_base, desc_limit, desc_access);
+	if (error)
+		goto done;
 
-	cb->copyin(NULL, stack, 0x1200, sizeof(stack));
-	cb->copyin(NULL, PT4, 0x2000, sizeof(PT4));
-	cb->copyin(NULL, PT3, 0x3000, sizeof(PT3));
-	cb->copyin(NULL, PT2, 0x4000, sizeof(PT2));
-	cb->setreg(NULL, 4, 0x1200);
+	desc_access = 0x00000093;
+	error = vm_set_desc(ctx, BSP, VM_REG_GUEST_DS,
+			    desc_base, desc_limit, desc_access);
+	if (error)
+		goto done;
 
-	cb->setmsr(NULL, MSR_EFER, EFER_LMA | EFER_LME);
-	cb->setcr(NULL, 4, CR4_PAE | CR4_VMXE);
-	cb->setcr(NULL, 3, 0x2000);
-	cb->setcr(NULL, 0, CR0_PG | CR0_PE | CR0_NE);
+	error = vm_set_desc(ctx, BSP, VM_REG_GUEST_ES,
+			    desc_base, desc_limit, desc_access);
+	if (error)
+		goto done;
 
-	setup_stand_gdt(gdtr);
-	cb->copyin(NULL, gdtr, 0x5000, sizeof(gdtr));
-        cb->setgdt(NULL, 0x5000, sizeof(gdtr));
+	error = vm_set_desc(ctx, BSP, VM_REG_GUEST_FS,
+			    desc_base, desc_limit, desc_access);
+	if (error)
+		goto done;
 
-	cb->exec(NULL, elf_image->e_entry);
+	error = vm_set_desc(ctx, BSP, VM_REG_GUEST_GS,
+			    desc_base, desc_limit, desc_access);
+	if (error)
+		goto done;
+
+	error = vm_set_desc(ctx, BSP, VM_REG_GUEST_SS,
+			    desc_base, desc_limit, desc_access);
+	if (error)
+		goto done;
+
+	/*
+	 * XXX TR is pointing to null selector even though we set the
+	 * TSS segment to be usable with a base address and limit of 0.
+	 */
+	desc_access = 0x0000008b;
+	error = vm_set_desc(ctx, BSP, VM_REG_GUEST_TR, 0, 0, desc_access);
+	if (error)
+		goto done;
+
+	error = vm_set_desc(ctx, BSP, VM_REG_GUEST_LDTR, 0, 0,
+			    DESC_UNUSABLE);
+	if (error)
+		goto done;
+
+	gsel = GSEL(1, SEL_KPL);
+	if ((error = vm_set_register(ctx, BSP, VM_REG_GUEST_CS, gsel)) != 0)
+		goto done;
+	
+	gsel = GSEL(2, SEL_KPL);
+	if ((error = vm_set_register(ctx, BSP, VM_REG_GUEST_DS, gsel)) != 0)
+		goto done;
+	
+	if ((error = vm_set_register(ctx, BSP, VM_REG_GUEST_ES, gsel)) != 0)
+		goto done;
+
+	if ((error = vm_set_register(ctx, BSP, VM_REG_GUEST_FS, gsel)) != 0)
+		goto done;
+	
+	if ((error = vm_set_register(ctx, BSP, VM_REG_GUEST_GS, gsel)) != 0)
+		goto done;
+	
+	if ((error = vm_set_register(ctx, BSP, VM_REG_GUEST_SS, gsel)) != 0)
+		goto done;
+
+	/* XXX TR is pointing to the null selector */
+	if ((error = vm_set_register(ctx, BSP, VM_REG_GUEST_TR, 0)) != 0)
+		goto done;
+
+	/* LDTR is pointing to the null selector */
+	if ((error = vm_set_register(ctx, BSP, VM_REG_GUEST_LDTR, 0)) != 0)
+		goto done;
+
+
+	cb->setreg(NULL, VM_REG_GUEST_RFLAGS, 0x2);
+	cb->setreg(NULL, VM_REG_GUEST_RBP, ADDR_TARGET);
+	cb->setreg(NULL, VM_REG_GUEST_RSP, init_stack_top);
+	cb->setmsr(NULL, MSR_EFER, 0x00000d00);
+	cb->setcr(NULL, 4, 0x000007b8);
+	cb->setcr(NULL, 3, ident_pt_l4);
+	cb->setcr(NULL, 0, 0x80010001);
+
+        cb->setgdt(NULL, gdt_desc, sizeof(uint64_t) * 3);
+	cb->setreg(NULL, VM_REG_GUEST_RIP, start64);
 	return (0);
+done:
+	return (error);
 }
 

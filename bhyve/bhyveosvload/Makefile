@@ -6,7 +6,7 @@ SRCS=	bhyveosvload.c osv.c
 MAN=
 
 DPADD+=	${LIBVMMAPI} ${LIBUTIL}
-LDADD+=	-lvmmapi -lutil
+LDADD+=	-lvmmapi -lutil -lelf
 
 WARNS?=	3
 
