@@ -34,6 +34,7 @@ for mod in conf["modules"]:
 		print "cd %s" % mod["name"]
 		os.chdir(mod["name"])
 		cmd = "make module"
+		print cmd
 		subprocess.call([cmd], shell=True)
 		print "cd -"
 		os.chdir(pwd)
