@@ -316,6 +316,26 @@ bsd += bsd/sys/xen/xenbus/xenbusb_front.o
 bsd += bsd/sys/dev/xen/netfront/netfront.o
 bsd += bsd/sys/dev/xen/blkfront/blkfront.o
 
+bsd/%.o: COMMON += -DIPFILTER=1 -DIPFILTER_LKM -DIPFILTER_LOG -DIPFILTER_LOOKUP
+bsd += bsd/sys/netinet/mlfk_ipl.o
+bsd += bsd/sys/netinet/ip_nat.o
+bsd += bsd/sys/netinet/ip_frag.o
+bsd += bsd/sys/netinet/ip_state.o
+bsd += bsd/sys/netinet/ip_proxy.o
+bsd += bsd/sys/netinet/ip_auth.o
+bsd += bsd/sys/netinet/ip_log.o
+bsd += bsd/sys/netinet/ip_fil_freebsd.o
+bsd += bsd/sys/netinet/fil.o
+bsd += bsd/sys/netinet/ip_lookup.o
+bsd += bsd/sys/netinet/ip_pool.o
+bsd += bsd/sys/netinet/ip_htable.o
+bsd += bsd/sys/netinet/ip_sync.o
+bsd += bsd/sys/netinet/ip_nat6.o
+bsd += bsd/sys/netinet/ip_rules.o
+bsd += bsd/sys/netinet/ip_scan.o
+bsd += bsd/sys/netinet/ip_dstlist.o
+bsd += bsd/sys/netinet/radix_ipf.o
+
 solaris :=
 solaris += bsd/sys/cddl/compat/opensolaris/kern/opensolaris.o
 solaris += bsd/sys/cddl/compat/opensolaris/kern/opensolaris_atomic.o
