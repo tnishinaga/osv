@@ -143,6 +143,7 @@ std::tuple<int, char**> parse_options(int ac, char** av)
         ("leak", "start leak detector after boot\n")
         ("nomount", "don't mount the file system\n")
         ("noshutdown", "continue running after main() returns\n")
+	("nic", bpo::value<std::vector<std::string>>(), "NIC configuration")
     ;
     bpo::variables_map vars;
     // don't allow --foo bar (require --foo=bar) so we can find the first non-option
@@ -177,6 +178,18 @@ std::tuple<int, char**> parse_options(int ac, char** av)
             }
         }
     }
+#if 0
+    if (vars.count("nic")) {
+        auto tv = vars["nic"].as<std::vector<std::string>>();
+        for (auto t : tv) {
+            std::vector<std::string> tmp;
+            boost::split(tmp, t, boost::is_any_of(" ,"), boost::token_compress_on);
+            for (auto t : tmp) {
+                debug(t);
+            }
+        }
+    }
+#endif
     opt_mount = !vars.count("nomount");
 
     av += nr_options;
