@@ -23,6 +23,18 @@
         "specjvm": {
             "type": "direct-dir",
             "path": "${OSV_BASE}/apps/specjvm/"
-        }
+        },
+	"osv-mruby": {
+	    "type": "direct-dir",
+            "path": "${OSV_BASE}/apps/osv-mruby/"
+	},
+	"mruby-eshell": {
+	    "type": "direct-dir",
+            "path": "${OSV_BASE}/apps/mruby-eshell/"
+	},
+	"userdata": {
+	    "type": "direct-dir",
+            "path": "${OSV_BASE}/apps/userdata/"
+	}
    }
 }
