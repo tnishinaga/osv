@@ -195,16 +195,6 @@ bool interrupt_manager::easy_register(std::initializer_list<msix_binding> bindin
     return (true);
 }
 
-bool interrupt_manager::easy_register(std::initializer_list<msix_binding> bindings)
-{
-    return easy_register(bindings);
-}
-
-bool interrupt_manager::easy_register(std::vector<msix_binding> bindings)
-{
-    return easy_register(bindings);
-}
-
 void interrupt_manager::easy_unregister()
 {
     free_vectors(_easy_vectors);
