@@ -81,8 +81,7 @@ interrupt_manager::~interrupt_manager()
 
 }
 
-template <class T>
-bool interrupt_manager::easy_register(T bindings)
+bool interrupt_manager::easy_register(std::vector<msix_binding> bindings)
 {
     unsigned n = bindings.size();
 
@@ -121,16 +120,6 @@ bool interrupt_manager::easy_register(T bindings)
     unmask_interrupts(assigned);
 
     return (true);
-}
-
-bool interrupt_manager::easy_register(std::initializer_list<msix_binding> bindings)
-{
-    return easy_register(bindings);
-}
-
-bool interrupt_manager::easy_register(std::vector<msix_binding> bindings)
-{
-    return easy_register(bindings);
 }
 
 void interrupt_manager::easy_unregister()
