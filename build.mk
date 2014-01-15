@@ -511,11 +511,23 @@ $(solaris): ASFLAGS+= \
 
 tests += $(solaris-tests)
 
+libtsm :=
+libtsm += libtsm/tsm_render.o
+libtsm += libtsm/tsm_screen.o
+libtsm += libtsm/tsm_selection.o
+libtsm += libtsm/tsm_unicode.o
+libtsm += libtsm/tsm_vte.o
+libtsm += libtsm/tsm_vte_charsets.o
+libtsm += libtsm/external/tommyhash.o
+libtsm += libtsm/external/tommyhashdyn.o
+libtsm += libtsm/external/tommylist.o
+libtsm += libtsm/external/wcwidth.o
+
 drivers :=
 drivers += drivers/console.o drivers/vga.o drivers/isa-serial.o
 drivers += drivers/debug-console.o
 drivers += drivers/ramdisk.o
-drivers += $(bsd) $(solaris)
+drivers += $(bsd) $(solaris) $(libtsm)
 drivers += core/mmu.o
 drivers += core/elf.o
 drivers += core/interrupt.o
