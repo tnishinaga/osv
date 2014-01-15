@@ -524,7 +524,7 @@ libtsm += libtsm/external/tommylist.o
 libtsm += libtsm/external/wcwidth.o
 
 drivers :=
-drivers += drivers/console.o drivers/vga.o drivers/isa-serial.o
+drivers += drivers/console.o drivers/vga.o drivers/kbd.o drivers/isa-serial.o
 drivers += drivers/debug-console.o
 drivers += drivers/ramdisk.o
 drivers += $(bsd) $(solaris) $(libtsm)
