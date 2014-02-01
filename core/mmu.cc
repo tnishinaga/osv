@@ -25,6 +25,7 @@
 #include "arch-mmu.hh"
 #include <stack>
 #include "java/jvm_balloon.hh"
+#include "dump.hh"
 
 extern void* elf_start;
 extern size_t elf_size;
@@ -1073,6 +1074,8 @@ void vm_sigsegv(uintptr_t addr, exception_frame* ef)
     auto pc = reinterpret_cast<void*>(ef->rip);
     if (pc >= text_start && pc < text_end) {
         abort("page fault outside application, addr %lx", addr);
+        dump_registers(ef);
+        abort("");
     }
     osv::handle_segmentation_fault(addr, ef);
 }
