@@ -13,7 +13,7 @@
 #include "drivers/driver.hh"
 #include "drivers/pci-function.hh"
 #include "drivers/pci-device.hh"
-#include "interrupt.hh"
+#include <osv/interrupt.hh>
 
 #define vmware_tag "vmware"
 #define vmware_d(...)   tprintf_d(vmware_tag, __VA_ARGS__)

@@ -6,12 +6,12 @@
  */
 
 #include <string.h>
-#include "mempool.hh"
-#include "mmu.hh"
+#include <osv/mempool.hh>
+#include <osv/mmu.hh>
 
 #include "virtio.hh"
 #include "drivers/vmxnet3-queues.hh"
-#include "debug.hh"
+#include <osv/debug.hh>
 
 namespace vmware {
 

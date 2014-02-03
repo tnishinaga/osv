@@ -16,7 +16,7 @@
 #include "drivers/vmware.hh"
 #include "drivers/vmxnet3-queues.hh"
 #include "drivers/pci-device.hh"
-#include "mempool.hh"
+#include <osv/mempool.hh>
 
 namespace vmware {
 

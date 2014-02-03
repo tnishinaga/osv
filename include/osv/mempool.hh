@@ -19,7 +19,7 @@
 #include <osv/percpu.hh>
 #include <osv/condvar.h>
 #include <osv/semaphore.hh>
-#include <mmu.hh>
+#include <osv/mmu.hh>
 
 namespace memory {
 
