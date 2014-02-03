@@ -11,7 +11,7 @@
 #include "drivers/vmware.hh"
 #include "drivers/vmxnet3.hh"
 #include "drivers/pci-device.hh"
-#include "interrupt.hh"
+#include <osv/interrupt.hh>
 
 #include <sstream>
 #include <string>
@@ -20,8 +20,8 @@
 #include <errno.h>
 #include <osv/debug.h>
 
-#include "sched.hh"
-#include "osv/trace.hh"
+#include <osv/sched.hh>
+#include <osv/trace.hh>
 
 #include "drivers/clock.hh"
 #include "drivers/clockevent.hh"
@@ -191,31 +191,31 @@ void vmxnet3::parse_pci_config(void)
 
 void vmxnet3::do_version_handshake(void)
 {
-    auto val = _bar1->read(VMXNET3_BAR1_VRRS);
+    auto val = _bar1->readl(VMXNET3_BAR1_VRRS);
     if ((val & VMXNET3_VERSIONS_MASK) != VMXNET3_REVISION) {
         auto err = boost::format("unknown HW version %d") % val;
         throw std::runtime_error(err.str());
     }
-    _bar1->write(VMXNET3_BAR1_VRRS, VMXNET3_REVISION);
+    _bar1->writel(VMXNET3_BAR1_VRRS, VMXNET3_REVISION);
 
-    val = _bar1->read(VMXNET3_BAR1_UVRS);
+    val = _bar1->readl(VMXNET3_BAR1_UVRS);
     if ((val & VMXNET3_VERSIONS_MASK) != VMXNET3_UPT_VERSION) {
         auto err = boost::format("unknown UPT version %d") % val;
         throw std::runtime_error(err.str());
     }
-    _bar1->write(VMXNET3_BAR1_UVRS, VMXNET3_UPT_VERSION);
+    _bar1->writel(VMXNET3_BAR1_UVRS, VMXNET3_UPT_VERSION);
 }
 
 void vmxnet3::write_cmd(u32 cmd)
 {
-    _bar1->write(VMXNET3_BAR1_CMD, cmd);
+    _bar1->writel(VMXNET3_BAR1_CMD, cmd);
 }
 
 u32 vmxnet3::read_cmd(u32 cmd)
 {
     write_cmd(cmd);
     mb();
-    return _bar1->read(VMXNET3_BAR1_CMD);
+    return _bar1->readl(VMXNET3_BAR1_CMD);
 }
 
 void vmxnet3_intr_mgr::easy_register_msix(const std::vector<binding> &bindings)

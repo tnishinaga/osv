@@ -13,8 +13,8 @@
 #include <atomic>
 #include <functional>
 #include <osv/mutex.h>
-#include "debug.hh"
-#include <mmu.hh>
+#include <osv/debug.hh>
+#include <osv/mmu.hh>
 
 namespace vmware {
 
