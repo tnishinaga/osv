@@ -105,7 +105,11 @@ def start_osv_qemu(options):
     if (options.wait):
 		args += ["-S"]
 
-    net_device_options = ['virtio-net-pci']
+    if (options.vmxnet3):
+        net_device_options = ['vmxnet3']
+    else:
+        net_device_options = ['virtio-net-pci']
+
     if options.mac:
         net_device_options.append('mac=%s' % options.mac)
 
@@ -277,6 +281,8 @@ if (__name__ == "__main__"):
                         help="use virtio-scsi instead of virtio-blk")
     parser.add_argument("-I", "--ide", action="store_true", default=False,
                         help="use ide instead of virtio-blk")
+    parser.add_argument("-3", "--vmxnet3", action="store_true", default=False,
+                        help="use vmxnet3 instead of virtio-net")
     parser.add_argument("-n", "--networking", action="store_true",
                         help="needs root. tap networking, specify interface")
     parser.add_argument("-b", "--bridge", action="store", default="virbr0",
