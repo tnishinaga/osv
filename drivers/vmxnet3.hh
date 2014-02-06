@@ -194,10 +194,10 @@ namespace vmware {
 
         void write_cmd(u32 cmd);
         u32 read_cmd(u32 cmd);
-
         //maintains the vmxnet3 instance number for multiple adapters
         static int _instance;
         int _id;
+        struct ifnet* _ifn;
 
         //Shared memory
         pci::bar *_bar0 = nullptr;

@@ -54,6 +54,81 @@ int vmxnet3::_instance = 0;
 #define vmxnet3_w(...)   tprintf_w(vmxnet3_tag, __VA_ARGS__)
 #define vmxnet3_e(...)   tprintf_e(vmxnet3_tag, __VA_ARGS__)
 
+static int if_ioctl(struct ifnet *ifp, u_long command, caddr_t data)
+{
+    vmxnet3_d("if_ioctl %x", command);
+
+    int error = 0;
+    switch(command) {
+    case SIOCSIFMTU:
+        vmxnet3_d("SIOCSIFMTU");
+        break;
+    case SIOCSIFFLAGS:
+        vmxnet3_d("SIOCSIFFLAGS");
+        /* Change status ifup, ifdown */
+        if (ifp->if_flags & IFF_UP) {
+            ifp->if_drv_flags |= IFF_DRV_RUNNING;
+            vmxnet3_d("if_up");
+        } else {
+            ifp->if_drv_flags &= ~IFF_DRV_RUNNING;
+            vmxnet3_d("if_down");
+        }
+        break;
+    case SIOCADDMULTI:
+    case SIOCDELMULTI:
+        vmxnet3_d("SIOCDELMULTI");
+        break;
+    default:
+        vmxnet3_d("redirecting to ether_ioctl()...");
+        error = ether_ioctl(ifp, command, data);
+        break;
+    }
+
+    return(error);
+}
+
+/**
+ * Invalidate the local Tx queues.
+ * @param ifp upper layer instance handle
+ */
+static void if_qflush(struct ifnet *ifp)
+{
+    /*
+     * Since virtio_net currently doesn't have any Tx queue we just
+     * flush the upper layer queues.
+     */
+    ::if_qflush(ifp);
+}
+
+/**
+ * Transmits a single mbuf instance.
+ * @param ifp upper layer instance handle
+ * @param m_head mbuf to transmit
+ *
+ * @return 0 in case of success and an appropriate error code
+ *         otherwise
+ */
+static int if_transmit(struct ifnet* ifp, struct mbuf* m_head)
+{
+    return -1;
+}
+
+static void if_init(void* xsc)
+{
+    vmxnet3_d("vmxnet3 init");
+}
+
+/**
+ * Return all the statistics we have gathered.
+ * @param ifp
+ * @param out_data
+ */
+static void if_getinfo(struct ifnet* ifp, struct if_data* out_data)
+{
+    // First - take the ifnet data
+    memcpy(out_data, &ifp->if_data, sizeof(*out_data));
+}
+
 template<class T> void slice_memory(void *&va, T &holder)
 {
     for (auto &e : holder) {
@@ -111,6 +186,32 @@ vmxnet3::vmxnet3(pci::device &dev)
     fill_driver_shared();
 
     start_isr_thread();
+
+    //initialize the BSD interface _if
+    _ifn = if_alloc(IFT_ETHER);
+    if (_ifn == NULL) {
+       //FIXME: need to handle this case - expand the above function not to allocate memory and
+       // do it within the constructor.
+       vmxnet3_w("if_alloc failed!");
+       return;
+    }
+
+    if_initname(_ifn, "eth", _id);
+    _ifn->if_mtu = ETHERMTU;
+    _ifn->if_softc = static_cast<void*>(this);
+    _ifn->if_flags = IFF_BROADCAST /*| IFF_MULTICAST*/;
+    _ifn->if_ioctl = if_ioctl;
+    _ifn->if_transmit = if_transmit;
+    _ifn->if_qflush = if_qflush;
+    _ifn->if_init = if_init;
+    _ifn->if_getinfo = if_getinfo;
+    IFQ_SET_MAXLEN(&_ifn->if_snd, 1);
+
+    _ifn->if_capabilities = 0;
+
+    const u_int8_t macaddr[6] = {0, 1, 2, 3, 4, 5};
+    ether_ifattach(_ifn, macaddr);
+
 }
 
 template <class T>
