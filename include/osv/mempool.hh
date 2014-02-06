@@ -184,11 +184,13 @@ class phys_contiguious_memory final {
 public:
 
     phys_contiguious_memory(size_t size, size_t align) {
+	    printf("%s size=%u align=%u\n", __PRETTY_FUNCTION__, size, align);
             _va = alloc_phys_contiguous_aligned(size, align);
             if(!_va)
                 throw std::bad_alloc();
             _pa = mmu::virt_to_phys(_va);
             _size = size;
+	    printf("%s va=%p pa=%p\n", __PRETTY_FUNCTION__, _va, _pa);
     }
 
     ~phys_contiguious_memory(void) {
