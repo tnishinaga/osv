@@ -64,14 +64,7 @@ template<class T> void slice_memory(void *&va, T &holder)
     }
 }
 
-vmxnet3_queues::vmxnet3_queues(void *va)
-{
-    printf("%s tx=%p rx=%p\n", __PRETTY_FUNCTION__, tx, rx);
-    slice_memory(va, tx);
-    slice_memory(va, rx);
-}
-
-vmxnet3_txqueue::vmxnet3_txqueue()
+void vmxnet3_txqueue::start()
 {
     Dl_info info;
     int s;
@@ -93,7 +86,7 @@ vmxnet3_txqueue::vmxnet3_txqueue()
     start_isr_thread();
 }
 
-vmxnet3_rxqueue::vmxnet3_rxqueue()
+void vmxnet3_rxqueue::start()
 {
     Dl_info info;
     int s;
@@ -125,7 +118,6 @@ vmxnet3::vmxnet3(pci::device &dev)
     , _queues_shared_mem(vmxnet3_txq_shared::size() * VMXNET3_TX_QUEUES +
                             vmxnet3_rxq_shared::size() * VMXNET3_RX_QUEUES,
                             VMXNET3_QUEUES_SHARED_ALIGN)
-    , _q(_queues_shared_mem.get_va())
     , _mcast_list(VMXNET3_MULTICAST_MAX * VMXNET3_ETH_ALEN, VMXNET3_MULTICAST_ALIGN)
     , _int_mgr(&dev, [this] (unsigned idx) { this->disable_interrupt(idx); })
 {
@@ -164,12 +156,27 @@ void vmxnet3::allocate_interrupts(void)
 {
     std::vector<vmxnet3_intr_mgr::binding> ints;
 
-    fill_intr_requirements(_q.tx, ints);
-    fill_intr_requirements(_q.rx, ints);
+    fill_intr_requirements(_txq, ints);
+    fill_intr_requirements(_rxq, ints);
     fill_intr_requirement(this, ints);
 
     auto intr_cfg = read_cmd(VMXNET3_CMD_GET_INTRCFG);
     _int_mgr.easy_register(intr_cfg, ints);
+}
+ 
+void vmxnet3::attach_queues_shared(void)
+{
+    auto *va = _queues_shared_mem.get_va();
+
+    slice_memory(va, _txq);
+    slice_memory(va, _rxq);
+
+    for (auto &q : _txq) {
+        q.start();
+    }
+    for (auto &q : _rxq) {
+        q.start();
+    }
 }
 
 void vmxnet3::fill_driver_shared(void)
