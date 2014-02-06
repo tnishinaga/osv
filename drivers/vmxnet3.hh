@@ -19,11 +19,6 @@
 #include <osv/mempool.hh>
 
 namespace vmware {
-    enum {
-        //Queues number
-        VMXNET3_TX_QUEUES = 1,
-        VMXNET3_RX_QUEUES = 1,
-    };
 
     template<class DescT, int NDesc>
         class vmxnet3_ring {
@@ -68,7 +63,7 @@ namespace vmware {
     class vmxnet3_txqueue : public vmxnet3_txq_shared
                           , public vmxnet3_isr_thread {
     public:
-        vmxnet3_txqueue();
+        void start();
         void set_intr_idx(unsigned idx) { _layout->intr_idx = static_cast<u8>(idx); }
 
     private:
@@ -84,7 +79,7 @@ namespace vmware {
     class vmxnet3_rxqueue : public vmxnet3_rxq_shared
                           , public vmxnet3_isr_thread {
     public:
-        vmxnet3_rxqueue();
+        void start();
         void set_intr_idx(unsigned idx) { _layout->intr_idx = static_cast<u8>(idx); }
 
     private:
@@ -95,13 +90,6 @@ namespace vmware {
 
         _cmdRingT _cmd_rings[VMXNET3_RXRINGS_PERQ];
         _compRingT _comp_ring;
-    };
-
-    class vmxnet3_queues {
-    public:
-        vmxnet3_queues(void *va);
-        vmxnet3_txqueue tx[VMXNET3_MAX_TX_QUEUES];
-        vmxnet3_rxqueue rx[VMXNET3_RX_QUEUES];
     };
 
     class vmxnet3_intr_mgr {
@@ -156,7 +144,7 @@ namespace vmware {
     };
 
     class vmxnet3 : public vmware_driver
-                 , protected vmxnet3_isr_thread {
+                  , protected vmxnet3_isr_thread {
     public:
         explicit vmxnet3(pci::device& dev);
         virtual ~vmxnet3() {};
@@ -167,6 +155,10 @@ namespace vmware {
     private:
         enum {
             VMXNET3_DEVICE_ID=0x07B0,
+
+            //Queues number
+            VMXNET3_TX_QUEUES = 1,
+            VMXNET3_RX_QUEUES = 1,
 
             //BAR1 registers
             VMXNET3_BAR1_VRRS = 0x000,    // Revision
@@ -191,6 +183,7 @@ namespace vmware {
 
         void parse_pci_config(void);
         void do_version_handshake(void);
+        void attach_queues_shared(void);
         void fill_driver_shared(void);
         void allocate_interrupts(void);
 
@@ -219,7 +212,8 @@ namespace vmware {
 
         memory::phys_contiguious_memory _queues_shared_mem;
 
-        vmxnet3_queues _q;
+        vmxnet3_txqueue _txq[VMXNET3_MAX_TX_QUEUES];
+        vmxnet3_rxqueue _rxq[VMXNET3_RX_QUEUES];
 
         memory::phys_contiguious_memory _mcast_list;
 
