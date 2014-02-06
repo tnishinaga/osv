@@ -187,11 +187,13 @@ hw_driver* vmxnet3::probe(hw_device* dev)
 void vmxnet3::parse_pci_config(void)
 {
     _bar0 = _dev.get_bar(1);
+    _bar0->map();
     if (_bar0 == nullptr) {
         throw std::runtime_error("BAR1 is absent");
     }
 
     _bar1 = _dev.get_bar(2);
+    _bar1->map();
     if (_bar1 == nullptr) {
         throw std::runtime_error("BAR2 is absent");
     }
