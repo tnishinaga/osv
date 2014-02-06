@@ -53,21 +53,8 @@ namespace vmware {
 
     template <class T> class vmxnet3_layout_holder {
     public:
-	vmxnet3_layout_holder() {
-	    Dl_info info;
-    	    int s;
-            dladdr(__builtin_return_address(0), &info);
-            printf("%s this=%p ra=%s\n", 
-                __PRETTY_FUNCTION__, this,
-		__cxxabiv1::__cxa_demangle(info.dli_sname, 0, 0, &s));
-	};
-
         void attach(void* storage) {
-            int s;
             _layout = static_cast<T *>(storage);
-            printf("%s this=%p _layout=%p type=%s\n", 
-                __PRETTY_FUNCTION__, this, _layout, 
-		__cxxabiv1::__cxa_demangle(typeid(*_layout).name(),0, 0, &s));
             memset(_layout, 0, sizeof(*_layout));
         }
 
