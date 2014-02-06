@@ -56,8 +56,6 @@ int vmxnet3::_instance = 0;
 
 template<class T> void slice_memory(void *&va, T &holder)
 {
-    int s;
-    printf("%s va=%p type=%s\n", __PRETTY_FUNCTION__, va, __cxxabiv1::__cxa_demangle(typeid(*holder).name(),0, 0, &s));
     for (auto &e : holder) {
         e.attach(va);
         va += e.size();
@@ -66,15 +64,6 @@ template<class T> void slice_memory(void *&va, T &holder)
 
 void vmxnet3_txqueue::start()
 {
-    Dl_info info;
-    int s;
-
-    dladdr(__builtin_return_address(0), &info);
-    printf("%s this=%p _layout=%p type=%s ra=%s\n", 
-    	__PRETTY_FUNCTION__, this, _layout, 
-        __cxxabiv1::__cxa_demangle(typeid(*_layout).name(),0, 0, &s),
-	__cxxabiv1::__cxa_demangle(info.dli_sname, 0, 0, &s));
-
     _layout->cmd_ring = _cmd_ring.get_desc_pa();
     _layout->cmd_ring_len = _cmd_ring.get_desc_num();
     _layout->comp_ring = _comp_ring.get_desc_pa();
@@ -88,15 +77,6 @@ void vmxnet3_txqueue::start()
 
 void vmxnet3_rxqueue::start()
 {
-    Dl_info info;
-    int s;
-
-    dladdr(__builtin_return_address(0), &info);
-    printf("%s this=%p _layout=%p type=%s ra=%s\n", 
-    	__PRETTY_FUNCTION__, this, _layout, 
-        __cxxabiv1::__cxa_demangle(typeid(*_layout).name(),0, 0, &s),
-	__cxxabiv1::__cxa_demangle(info.dli_sname, 0, 0, &s));
-
     for (unsigned i = 0; i < VMXNET3_RXRINGS_PERQ; i++) {
         _layout->cmd_ring[i] = _cmd_rings[i].get_desc_pa();
         _layout->cmd_ring_len[i] = _cmd_rings[i].get_desc_num();
@@ -121,7 +101,6 @@ vmxnet3::vmxnet3(pci::device &dev)
     , _mcast_list(VMXNET3_MULTICAST_MAX * VMXNET3_ETH_ALEN, VMXNET3_MULTICAST_ALIGN)
     , _int_mgr(&dev, [this] (unsigned idx) { this->disable_interrupt(idx); })
 {
-    printf("%s this=%p\n", __PRETTY_FUNCTION__, this);
     vmxnet3_i("VMXNET3 INSTANCE");
     _id = _instance++;
     _drv_shared.attach(_drv_shared_mem.get_va());
@@ -193,7 +172,6 @@ void vmxnet3::fill_driver_shared(void)
 
 hw_driver* vmxnet3::probe(hw_device* dev)
 {
-    printf("%s\n", __PRETTY_FUNCTION__);
     try {
         if (auto pci_dev = dynamic_cast<pci::device*>(dev)) {
             if (pci_dev->get_id() == hw_device_id(VMWARE_VENDOR_ID, VMXNET3_DEVICE_ID)) {
