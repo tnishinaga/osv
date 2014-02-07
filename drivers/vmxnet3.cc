@@ -110,7 +110,20 @@ static void if_qflush(struct ifnet *ifp)
  */
 static int if_transmit(struct ifnet* ifp, struct mbuf* m_head)
 {
-    return -1;
+    vmxnet3* vmx = (vmxnet3*)ifp->if_softc;
+
+    vmxnet3_d("%s_start", __FUNCTION__);
+
+    /* Process packets */
+    vmx->_tx_ring_lock.lock();
+
+    vmxnet3_d("*** processing packet! ***");
+
+    int error = vmx->tx_locked(m_head);
+
+    vmx->_tx_ring_lock.unlock();
+
+    return error;
 }
 
 static void if_init(void* xsc)
@@ -327,6 +340,81 @@ u32 vmxnet3::read_cmd(u32 cmd)
     write_cmd(cmd);
     mb();
     return _bar1->readl(VMXNET3_BAR1_CMD);
+}
+
+int vmxnet3::tx_locked(struct mbuf *m_head, bool flush)
+{
+    DEBUG_ASSERT(_tx_ring_lock.owned(), "_tx_ring_lock is not locked!");
+
+    struct mbuf *m;
+    vmxnet3_txqueue *txq = &_txq[0];
+    int rc = 0;
+
+
+
+    vq->init_sg();
+    vq->add_out_sg(static_cast<void*>(&req->mhdr), _hdr_size);
+
+    for (m = m_head; m != NULL; m = m->m_hdr.mh_next) {
+        int frag_len = m->m_hdr.mh_len;
+
+        if (frag_len != 0) {
+            net_d("Frag len=%d:", frag_len);
+            req->mhdr.num_buffers++;
+
+            vq->add_out_sg(m->m_hdr.mh_data, m->m_hdr.mh_len);
+            tx_bytes += frag_len;
+        }
+    }
+
+    if (!vq->avail_ring_has_room(vq->_sg_vec.size())) {
+        // can't call it, this is a get buf thing
+        if (vq->used_ring_not_empty()) {
+            trace_virtio_net_tx_no_space_calling_gc(_ifn->if_index);
+            tx_gc();
+        } else {
+            net_d("%s: no room", __FUNCTION__);
+            delete req;
+
+            rc = ENOBUFS;
+            goto out;
+        }
+    }
+
+    if (!vq->add_buf(req)) {
+        trace_virtio_net_tx_failed_add_buf(_ifn->if_index);
+        delete req;
+
+        rc = ENOBUFS;
+        goto out;
+    }
+
+    trace_virtio_net_tx_packet(_ifn->if_index, vq_sg_vec->size());
+
+out:
+
+    /* Update the statistics */
+    switch (rc) {
+    case 0: /* success */
+        stats->tx_bytes += tx_bytes;
+        stats->tx_packets++;
+
+        if (req->mhdr.hdr.flags & net_hdr::VIRTIO_NET_HDR_F_NEEDS_CSUM)
+            stats->tx_csum++;
+
+        if (req->mhdr.hdr.gso_type)
+            stats->tx_tso++;
+
+        break;
+    case ENOBUFS:
+        stats->tx_drops++;
+
+        break;
+    default:
+        stats->tx_err++;
+    }
+
+    return rc;
 }
 
 void vmxnet3_intr_mgr::easy_register_msix(const std::vector<binding> &bindings)
