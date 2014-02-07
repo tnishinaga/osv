@@ -219,6 +219,7 @@ namespace vmware {
 
         void write_cmd(u32 cmd);
         u32 read_cmd(u32 cmd);
+        void get_mac_address(u_int8_t *macaddr);
         //maintains the vmxnet3 instance number for multiple adapters
         static int _instance;
         int _id;
