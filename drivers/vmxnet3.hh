@@ -147,6 +147,20 @@ namespace vmware {
 
         virtual const std::string get_name(void) { return std::string("vmxnet3"); }
 
+        /**
+         * Transmit a single mbuf.
+         * @param m_head a buffer to transmits
+         * @param flush kick() if TRUE
+         * @note should be called under the _tx_ring_lock.
+         *
+         * @return 0 in case of success and an appropriate error code
+         *         otherwise
+         */
+        int tx_locked(struct mbuf* m_head, bool flush = false);
+
+        // tx ring lock protects this ring for multiple access
+        mutex _tx_ring_lock;
+
         static hw_driver* probe(hw_device* dev);
     private:
         enum {
@@ -162,6 +176,17 @@ namespace vmware {
             VMXNET3_BAR1_CMD  = 0x020,    // Command
 
             //VMXNET3 commands
+            VMXNET3_CMD_ENABLE = 0xCAFE0000, // Enable VMXNET3
+            VMXNET3_CMD_DISABLE = 0xCAFE0001, // Disable VMXNET3
+            VMXNET3_CMD_RESET = 0xCAFE0002, // Reset device
+            VMXNET3_CMD_SET_RXMODE = 0xCAFE0003, // Set interface flags
+            VMXNET3_CMD_SET_FILTER = 0xCAFE0004, // Set address filter
+            VMXNET3_CMD_VLAN_FILTER = 0xCAFE0005, // Set VLAN filter
+            VMXNET3_CMD_GET_STATUS = 0xF00D0000,  // Get queue errors
+            VMXNET3_CMD_GET_STATS = 0xF00D0001, // Get queue statistics
+            VMXNET3_CMD_GET_LINK = 0xF00D0002, // Get link status
+            VMXNET3_CMD_GET_MACL = 0xF00D0003, // Get MAC address low
+            VMXNET3_CMD_GET_MACH = 0xF00D0004, // Get MAC address high
             VMXNET3_CMD_GET_INTRCFG = 0xF00D0008,  // Get interrupt config
 
             //Shared memory alignment
