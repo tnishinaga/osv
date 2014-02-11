@@ -30,14 +30,21 @@ namespace vmware {
                 slice_memory(va, _desc);
             }
 
+            unsigned head, next;
+            int gen;
             mmu::phys get_desc_pa() const { return _desc_mem.get_pa(); }
+            mmu::phys get_desc_pa(int i) const {
+                if (i >= get_desc_num())
+                    throw std::out_of_range();
+                return _desc_mem.get_pa() + (_desc[0].size() * i);
+            }
             static u32 get_desc_num() { return NDesc; }
+            DescT& get_desc(int i) { return _desc[i]; }
         private:
             enum {
                 //Queue descriptors alignment
                 VMXNET3_DESC_ALIGN = 512
             };
-
             memory::phys_contiguious_memory _desc_mem;
             DescT      _desc[NDesc];
         };
@@ -60,15 +67,16 @@ namespace vmware {
                           , public vmxnet3_isr_thread {
     public:
         void start();
-        void set_intr_idx(unsigned idx) { _layout->intr_idx = static_cast<u8>(idx); }
+        void set_intr_idx(unsigned idx) { layout->intr_idx = static_cast<u8>(idx); }
+        int enqueue(struct mbuf *m);
+        typedef vmxnet3_ring<vmxnet3_tx_desc, VMXNET3_MAX_TX_NDESC> cmdRingT;
+        cmdRingT cmd_ring;
 
     private:
         virtual void isr(void) {};
 
-        typedef vmxnet3_ring<vmxnet3_tx_desc, VMXNET3_MAX_TX_NDESC> _cmdRingT;
         typedef vmxnet3_ring<vmxnet3_tx_compdesc, VMXNET3_MAX_TX_NCOMPDESC> _compRingT;
 
-        _cmdRingT _cmd_ring;
         _compRingT _comp_ring;
     };
 
@@ -76,7 +84,7 @@ namespace vmware {
                           , public vmxnet3_isr_thread {
     public:
         void start();
-        void set_intr_idx(unsigned idx) { _layout->intr_idx = static_cast<u8>(idx); }
+        void set_intr_idx(unsigned idx) { layout->intr_idx = static_cast<u8>(idx); }
 
     private:
         virtual void isr(void) {};
@@ -170,6 +178,9 @@ namespace vmware {
             VMXNET3_TX_QUEUES = 1,
             VMXNET3_RX_QUEUES = 1,
 
+            //BAR0 registers
+            VMXNET3_BAR0_TXH = 0x600,
+
             //BAR1 registers
             VMXNET3_BAR1_VRRS = 0x000,    // Revision
             VMXNET3_BAR1_UVRS = 0x008,    // UPT version
@@ -199,7 +210,12 @@ namespace vmware {
 
             //Internal device parameters
             VMXNET3_MULTICAST_MAX = 32,
-            VMXNET3_MAX_RX_SEGS = 17
+            VMXNET3_MAX_RX_SEGS = 17,
+
+            //Offloading modes
+            VMXNET3_OM_NONE = 0,
+            VMXNET3_OM_CSUM = 2,
+            VMXNET3_OM_TSO = 3
         };
 
         void parse_pci_config(void);
@@ -220,6 +236,7 @@ namespace vmware {
         void write_cmd(u32 cmd);
         u32 read_cmd(u32 cmd);
         void get_mac_address(u_int8_t *macaddr);
+        void txq_encap(struct vmxnet3_txqueue &txq, struct mbuf *m_head);
         //maintains the vmxnet3 instance number for multiple adapters
         static int _instance;
         int _id;

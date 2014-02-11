@@ -152,13 +152,13 @@ template<class T> void slice_memory(void *&va, T &holder)
 
 void vmxnet3_txqueue::start()
 {
-    _layout->cmd_ring = _cmd_ring.get_desc_pa();
-    _layout->cmd_ring_len = _cmd_ring.get_desc_num();
-    _layout->comp_ring = _comp_ring.get_desc_pa();
-    _layout->comp_ring_len = _comp_ring.get_desc_num();
+    layout->cmd_ring = cmd_ring.get_desc_pa();
+    layout->cmd_ring_len = cmd_ring.get_desc_num();
+    layout->comp_ring = _comp_ring.get_desc_pa();
+    layout->comp_ring_len = _comp_ring.get_desc_num();
 
-    _layout->driver_data = mmu::virt_to_phys(this);
-    _layout->driver_data_len = sizeof(*this);
+    layout->driver_data = mmu::virt_to_phys(this);
+    layout->driver_data_len = sizeof(*this);
 
     start_isr_thread();
 }
@@ -166,15 +166,15 @@ void vmxnet3_txqueue::start()
 void vmxnet3_rxqueue::start()
 {
     for (unsigned i = 0; i < VMXNET3_RXRINGS_PERQ; i++) {
-        _layout->cmd_ring[i] = _cmd_rings[i].get_desc_pa();
-        _layout->cmd_ring_len[i] = _cmd_rings[i].get_desc_num();
+        layout->cmd_ring[i] = _cmd_rings[i].get_desc_pa();
+        layout->cmd_ring_len[i] = _cmd_rings[i].get_desc_num();
     }
 
-    _layout->comp_ring = _comp_ring.get_desc_pa();
-    _layout->comp_ring_len = _comp_ring.get_desc_num();
+    layout->comp_ring = _comp_ring.get_desc_pa();
+    layout->comp_ring_len = _comp_ring.get_desc_num();
 
-    _layout->driver_data = mmu::virt_to_phys(this);
-    _layout->driver_data_len = sizeof(*this);
+    layout->driver_data = mmu::virt_to_phys(this);
+    layout->driver_data_len = sizeof(*this);
 
     start_isr_thread();
 }
@@ -343,10 +343,53 @@ u32 vmxnet3::read_cmd(u32 cmd)
     return _bar1->readl(VMXNET3_BAR1_CMD);
 }
 
-int vmxnet3::tx_locked(struct mbuf *m_head, bool flush)
+int vmxnet3::tx_locked(struct mbuf *m, bool flush)
 {
     DEBUG_ASSERT(_tx_ring_lock.owned(), "_tx_ring_lock is not locked!");
+
+    txq_encap(_txq[0], m);
+    _bar0->writel(VMXNET3_BAR0_TXH, _txq[0].cmd_ring.head);
+
     return 0;
+}
+
+void vmxnet3::txq_encap(struct vmxnet3_txqueue &txq, struct mbuf *m_head)
+{
+    auto &txd = txq.cmd_ring.get_desc(txq.cmd_ring.head);
+    auto &sop = txq.cmd_ring.get_desc(txq.cmd_ring.head);
+    auto gen = txq.cmd_ring.gen ^ 1; // Owned by cpu (yet)
+
+    for (auto m = m_head; m != NULL; m = m->m_hdr.mh_next) {
+        txd = txq.cmd_ring.get_desc(txq.cmd_ring.head);
+        txd.layout->addr = reinterpret_cast<u64>(m->m_hdr.mh_data);
+        txd.layout->len = m->m_hdr.mh_len;
+        txd.layout->gen = gen;
+        txd.layout->dtype = 0;
+        txd.layout->offload_mode = VMXNET3_OM_NONE;
+        txd.layout->offload_pos = 0;
+        txd.layout->hlen = 0;
+        txd.layout->eop = 0;
+        txd.layout->compreq = 0;
+        txd.layout->vtag_mode = 0;
+        txd.layout->vtag = 0;
+ 
+        if (++txq.cmd_ring.head == txq.cmd_ring.get_desc_num()) {
+            txq.cmd_ring.head = 0;
+            txq.cmd_ring.gen ^= 1;
+        }
+        gen = txq.cmd_ring.gen;
+    }
+    txd.layout->eop = 1;
+    txd.layout->compreq = 1;
+
+    // Finally, change the ownership.
+    wmb();
+    sop.layout->gen ^= 1;
+
+    if (++txq.layout->npending >= txq.layout->intr_threshold) {
+        txq.layout->npending = 0;
+        _bar0->writel(VMXNET3_BAR0_TXH, txq.cmd_ring.head);
+    }
 }
 
 void vmxnet3::get_mac_address(u_int8_t *macaddr)
