@@ -25,14 +25,14 @@ namespace vmware {
     {
         vmxnet3_layout_holder<vmxnet3_shared_layout>::attach(storage);
 
-        _layout->magic = VMXNET3_REV1_MAGIC;
+        layout->magic = VMXNET3_REV1_MAGIC;
 
         // DriverInfo
-        _layout->version = VMXNET3_DRIVER_VERSION;
-        _layout->guest = VMXNET3_GOS_FREEBSD | VMXNET3_GUEST_OS_VERSION |
+        layout->version = VMXNET3_DRIVER_VERSION;
+        layout->guest = VMXNET3_GOS_FREEBSD | VMXNET3_GUEST_OS_VERSION |
             (sizeof(void*) == sizeof(u32) ? VMXNET3_GOS_32BIT : VMXNET3_GOS_32BIT);
 
-        _layout->vmxnet3_revision = VMXNET3_REVISION;
-        _layout->upt_version = VMXNET3_UPT_VERSION;
+        layout->vmxnet3_revision = VMXNET3_REVISION;
+        layout->upt_version = VMXNET3_UPT_VERSION;
     }
 };

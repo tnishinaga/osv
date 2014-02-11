@@ -54,13 +54,12 @@ namespace vmware {
     template <class T> class vmxnet3_layout_holder {
     public:
         void attach(void* storage) {
-            _layout = static_cast<T *>(storage);
-            memset(_layout, 0, sizeof(*_layout));
+            layout = static_cast<T *>(storage);
+            memset(layout, 0, sizeof(*layout));
         }
 
-        static size_t size() { return sizeof(*_layout); }
-    protected:
-        T *_layout = nullptr;
+        static size_t size() { return sizeof(*layout); }
+        T *layout = nullptr;
     };
 
     typedef struct {
@@ -113,17 +112,17 @@ namespace vmware {
     public:
         void attach(void* storage);
         void set_driver_data(mmu::phys pa, u32 len)
-            { _layout->driver_data = pa; _layout->driver_data_len = len; }
+            { layout->driver_data = pa; layout->driver_data_len = len; }
         void set_queue_shared(mmu::phys pa, u32 len)
-            {_layout->queue_shared = pa; _layout->queue_shared_len = len; }
+            {layout->queue_shared = pa; layout->queue_shared_len = len; }
         void set_max_sg_len(u16 num)
-            { _layout->nrxsg_max = num; }
+            { layout->nrxsg_max = num; }
         void set_mcast_table(mmu::phys pa, u32 len)
-            { _layout->mcast_table = pa; _layout->mcast_tablelen = len; }
+            { layout->mcast_table = pa; layout->mcast_tablelen = len; }
         void set_evt_intr_idx(u8 idx)
-            { _layout->evintr = idx; }
+            { layout->evintr = idx; }
         void set_intr_config(u8 intr_num, u8 automask)
-            { _layout->nintr = intr_num; _layout->automask = automask; }
+            { layout->nintr = intr_num; layout->automask = automask; }
     };
 
     typedef struct {
