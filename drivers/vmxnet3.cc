@@ -192,6 +192,7 @@ vmxnet3::vmxnet3(pci::device &dev)
     vmxnet3_i("VMXNET3 INSTANCE");
     _id = _instance++;
     _drv_shared.attach(_drv_shared_mem.get_va());
+    attach_queues_shared();
 
     parse_pci_config();
     do_version_handshake();
@@ -346,6 +347,7 @@ u32 vmxnet3::read_cmd(u32 cmd)
 int vmxnet3::tx_locked(struct mbuf *m, bool flush)
 {
     DEBUG_ASSERT(_tx_ring_lock.owned(), "_tx_ring_lock is not locked!");
+    DEBUG_ASSERT(_txq[0].layout, "txq layout not set");
 
     txq_encap(_txq[0], m);
     _bar0->writel(VMXNET3_BAR0_TXH, _txq[0].cmd_ring.head);
