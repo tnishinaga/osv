@@ -195,11 +195,13 @@ vmxnet3::vmxnet3(pci::device &dev)
     attach_queues_shared();
 
     parse_pci_config();
+    stop();
     do_version_handshake();
     allocate_interrupts();
     fill_driver_shared();
 
     start_isr_thread();
+    enable_device();
 
     //initialize the BSD interface _if
     _ifn = if_alloc(IFT_ETHER);
@@ -247,7 +249,7 @@ void vmxnet3::fill_intr_requirements(T &entries, std::vector<vmxnet3_intr_mgr::b
     }
 }
 
-void vmxnet3::allocate_interrupts(void)
+void vmxnet3::allocate_interrupts()
 {
     std::vector<vmxnet3_intr_mgr::binding> ints;
 
@@ -259,7 +261,7 @@ void vmxnet3::allocate_interrupts(void)
     _int_mgr.easy_register(intr_cfg, ints);
 }
  
-void vmxnet3::attach_queues_shared(void)
+void vmxnet3::attach_queues_shared()
 {
     auto *va = _queues_shared_mem.get_va();
 
@@ -274,7 +276,7 @@ void vmxnet3::attach_queues_shared(void)
     }
 }
 
-void vmxnet3::fill_driver_shared(void)
+void vmxnet3::fill_driver_shared()
 {
     _drv_shared.set_driver_data(mmu::virt_to_phys(this), sizeof(*this));
     _drv_shared.set_queue_shared(_queues_shared_mem.get_pa(),
@@ -300,7 +302,7 @@ hw_driver* vmxnet3::probe(hw_device* dev)
     return nullptr;
 }
 
-void vmxnet3::parse_pci_config(void)
+void vmxnet3::parse_pci_config()
 {
     _bar0 = _dev.get_bar(1);
     _bar0->map();
@@ -315,7 +317,20 @@ void vmxnet3::parse_pci_config(void)
     }
 }
 
-void vmxnet3::do_version_handshake(void)
+void vmxnet3::stop()
+{
+    write_cmd(VMXNET3_CMD_DISABLE);
+    write_cmd(VMXNET3_CMD_RESET);
+}
+
+void vmxnet3::enable_device()
+{
+    read_cmd(VMXNET3_CMD_ENABLE);
+    _bar0->writel(VMXNET3_BAR0_RXH1, 0);
+    _bar0->writel(VMXNET3_BAR0_RXH2, 0);
+}
+
+void vmxnet3::do_version_handshake()
 {
     auto val = _bar1->readl(VMXNET3_BAR1_VRRS);
     if ((val & VMXNET3_VERSIONS_MASK) != VMXNET3_REVISION) {
@@ -362,6 +377,8 @@ void vmxnet3::txq_encap(struct vmxnet3_txqueue &txq, struct mbuf *m_head)
     auto gen = txq.cmd_ring.gen ^ 1; // Owned by cpu (yet)
 
     for (auto m = m_head; m != NULL; m = m->m_hdr.mh_next) {
+        if (m->m_hdr.mh_len == 0)
+            continue;
         txd = txq.cmd_ring.get_desc(txq.cmd_ring.head);
         txd.layout->addr = reinterpret_cast<u64>(m->m_hdr.mh_data);
         txd.layout->len = m->m_hdr.mh_len;
@@ -457,7 +474,7 @@ void vmxnet3_intr_mgr::easy_register(u32 intr_cfg,
     }
 }
 
-void vmxnet3_intr_mgr::easy_unregister(void)
+void vmxnet3_intr_mgr::easy_unregister()
 {
     if(_msix_registered) {
         _msi.easy_unregister();
