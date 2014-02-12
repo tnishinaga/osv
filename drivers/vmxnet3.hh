@@ -55,10 +55,10 @@ namespace vmware {
             : isr_thread([this] { this->isr(); }) {};
 
 
-        sched::thread *get_isr_thread(void) { return &isr_thread; };
-        void start_isr_thread(void) { isr_thread.start(); }
+        sched::thread *get_isr_thread() { return &isr_thread; };
+        void start_isr_thread() { isr_thread.start(); }
     private:
-        virtual void isr(void) = 0;
+        virtual void isr() = 0;
         sched::thread isr_thread;
         unsigned _intr_idx = 0;
     };
@@ -73,7 +73,7 @@ namespace vmware {
         cmdRingT cmd_ring;
 
     private:
-        virtual void isr(void) {};
+        virtual void isr() {};
 
         typedef vmxnet3_ring<vmxnet3_tx_compdesc, VMXNET3_MAX_TX_NCOMPDESC> _compRingT;
 
@@ -87,7 +87,7 @@ namespace vmware {
         void set_intr_idx(unsigned idx) { layout->intr_idx = static_cast<u8>(idx); }
 
     private:
-        virtual void isr(void) {};
+        virtual void isr() {};
 
         typedef vmxnet3_ring<vmxnet3_rx_desc, VMXNET3_MAX_RX_NDESC> _cmdRingT;
         typedef vmxnet3_ring<vmxnet3_rx_compdesc, VMXNET3_MAX_RX_NCOMPDESC> _compRingT;
@@ -116,7 +116,7 @@ namespace vmware {
         void easy_register(u32 intr_cfg,
                            const std::vector<binding>& bindings);
         void easy_register_msix(const std::vector<binding>& bindings);
-        void easy_unregister(void);
+        void easy_unregister();
 
         bool is_automask() const { return _is_auto_mask; }
         unsigned interrupts_number() const { return _num_interrupts; }
@@ -153,7 +153,7 @@ namespace vmware {
         explicit vmxnet3(pci::device& dev);
         virtual ~vmxnet3() {};
 
-        virtual const std::string get_name(void) { return std::string("vmxnet3"); }
+        virtual const std::string get_name() { return std::string("vmxnet3"); }
 
         /**
          * Transmit a single mbuf.
@@ -179,7 +179,9 @@ namespace vmware {
             VMXNET3_RX_QUEUES = 1,
 
             //BAR0 registers
-            VMXNET3_BAR0_TXH = 0x600,
+            VMXNET3_BAR0_TXH = 0x600, // Queue 0 of Tx head
+            VMXNET3_BAR0_RXH1 = 0x800, // Queue 0 of Ring1 Rx head
+            VMXNET3_BAR0_RXH2 = 0xA00, // Queue 0 of Ring2 Rx head
 
             //BAR1 registers
             VMXNET3_BAR1_VRRS = 0x000,    // Revision
@@ -218,11 +220,13 @@ namespace vmware {
             VMXNET3_OM_TSO = 3
         };
 
-        void parse_pci_config(void);
-        void do_version_handshake(void);
-        void attach_queues_shared(void);
-        void fill_driver_shared(void);
-        void allocate_interrupts(void);
+        void parse_pci_config();
+        void stop();
+        void enable_device();
+        void do_version_handshake();
+        void attach_queues_shared();
+        void fill_driver_shared();
+        void allocate_interrupts();
 
         template <class T>
         static void fill_intr_requirement(T *q, std::vector<vmxnet3_intr_mgr::binding> &ints);
@@ -231,7 +235,7 @@ namespace vmware {
 
         void set_intr_idx(unsigned idx) { _drv_shared.set_evt_intr_idx(static_cast<u8>(idx)); }
         void disable_interrupt(unsigned idx) {/*TODO: implement me*/}
-        virtual void isr(void) {};
+        virtual void isr() {};
 
         void write_cmd(u32 cmd);
         u32 read_cmd(u32 cmd);
