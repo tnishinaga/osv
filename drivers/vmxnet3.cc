@@ -286,6 +286,13 @@ void vmxnet3::fill_driver_shared()
                                 _mcast_list.get_size());
     _drv_shared.set_intr_config(static_cast<u8>(_int_mgr.interrupts_number()),
                                 static_cast<u8>(_int_mgr.is_automask()));
+    _drv_shared.layout->upt_features = 0;
+    _drv_shared.layout->mtu = 1500;
+    _drv_shared.layout->ntxqueue = 1;
+    _drv_shared.layout->nrxqueue = 1;
+    _bar1->writel(VMXNET3_BAR1_DSL, _drv_shared_mem.get_pa());
+    _bar1->writel(VMXNET3_BAR1_DSH,
+        reinterpret_cast<u64>(_drv_shared_mem.get_pa()) >> 32);
 }
 
 hw_driver* vmxnet3::probe(hw_device* dev)

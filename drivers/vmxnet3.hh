@@ -186,6 +186,8 @@ namespace vmware {
             //BAR1 registers
             VMXNET3_BAR1_VRRS = 0x000,    // Revision
             VMXNET3_BAR1_UVRS = 0x008,    // UPT version
+            VMXNET3_BAR1_DSL  = 0x010,    // Driver shared address low
+            VMXNET3_BAR1_DSH  = 0x018,    // Driver shared address high
             VMXNET3_BAR1_CMD  = 0x020,    // Command
 
             //VMXNET3 commands
