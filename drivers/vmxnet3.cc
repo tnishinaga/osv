@@ -384,10 +384,8 @@ void vmxnet3::txq_encap(struct vmxnet3_txqueue &txq, struct mbuf *m_head)
     auto gen = txq.cmd_ring.gen ^ 1; // Owned by cpu (yet)
 
     for (auto m = m_head; m != NULL; m = m->m_hdr.mh_next) {
-        if (m->m_hdr.mh_len == 0)
-            continue;
         txd = txq.cmd_ring.get_desc(txq.cmd_ring.head);
-        txd.layout->addr = reinterpret_cast<u64>(m->m_hdr.mh_data);
+        txd.layout->addr = mmu::virt_to_phys(m->m_hdr.mh_data);
         txd.layout->len = m->m_hdr.mh_len;
         txd.layout->gen = gen;
         txd.layout->dtype = 0;
