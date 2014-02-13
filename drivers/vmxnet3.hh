@@ -33,11 +33,6 @@ namespace vmware {
             unsigned head, next;
             int gen;
             mmu::phys get_desc_pa() const { return _desc_mem.get_pa(); }
-            mmu::phys get_desc_pa(int i) const {
-                if (i >= get_desc_num())
-                    throw std::out_of_range();
-                return _desc_mem.get_pa() + (_desc[0].size() * i);
-            }
             static u32 get_desc_num() { return NDesc; }
             DescT& get_desc(int i) { return _desc[i]; }
         private:
