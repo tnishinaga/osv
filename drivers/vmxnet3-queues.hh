@@ -55,6 +55,10 @@ namespace vmware {
     public:
         void attach(void* storage) {
             layout = static_cast<T *>(storage);
+            clear();
+        }
+
+        void clear() {
             memset(layout, 0, sizeof(*layout));
         }
 

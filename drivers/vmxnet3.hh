@@ -30,11 +30,14 @@ namespace vmware {
                 slice_memory(va, _desc);
             }
 
-            unsigned head, next;
+            unsigned head, next, fill;
             int gen;
             mmu::phys get_desc_pa() const { return _desc_mem.get_pa(); }
             static u32 get_desc_num() { return NDesc; }
             DescT& get_desc(int i) { return _desc[i]; }
+            void clear_desc(int i) { _desc[i].clear(); }
+            void clear_descs() { for (int i = 0; i < NDesc; i++) clear_desc(i); }
+            void increment_fill();
         private:
             enum {
                 //Queue descriptors alignment
@@ -61,34 +64,42 @@ namespace vmware {
     class vmxnet3_txqueue : public vmxnet3_txq_shared
                           , public vmxnet3_isr_thread {
     public:
-        void start();
+        void init(std::function<void (void)> isr_handler);
         void set_intr_idx(unsigned idx) { layout->intr_idx = static_cast<u8>(idx); }
         int enqueue(struct mbuf *m);
+        void attach(void* storage);
         typedef vmxnet3_ring<vmxnet3_tx_desc, VMXNET3_MAX_TX_NDESC> cmdRingT;
+        typedef vmxnet3_ring<vmxnet3_tx_compdesc, VMXNET3_MAX_TX_NCOMPDESC> compRingT;
         cmdRingT cmd_ring;
 
+        compRingT comp_ring;
+        struct mbuf *buf[VMXNET3_MAX_TX_NDESC];
+
     private:
-        virtual void isr() {};
-
-        typedef vmxnet3_ring<vmxnet3_tx_compdesc, VMXNET3_MAX_TX_NCOMPDESC> _compRingT;
-
-        _compRingT _comp_ring;
+        std::function<void (void)> _isr_handler;
+        virtual void isr() { printf("%s\n", __PRETTY_FUNCTION__); _isr_handler(); };
     };
 
     class vmxnet3_rxqueue : public vmxnet3_rxq_shared
                           , public vmxnet3_isr_thread {
     public:
-        void start();
+        void init(std::function<void (void)> isr_handler);
         void set_intr_idx(unsigned idx) { layout->intr_idx = static_cast<u8>(idx); }
+        void discard(int rid, int idx);
+        void discard_chain(int rid);
+        int newbuf(int rid);
+        void attach(void* storage);
+
+        typedef vmxnet3_ring<vmxnet3_rx_desc, VMXNET3_MAX_RX_NDESC> cmdRingT;
+        typedef vmxnet3_ring<vmxnet3_rx_compdesc, VMXNET3_MAX_RX_NCOMPDESC> compRingT;
+
+        cmdRingT cmd_rings[VMXNET3_RXRINGS_PERQ];
+        compRingT comp_ring;
+        struct mbuf *buf[VMXNET3_RXRINGS_PERQ][VMXNET3_MAX_RX_NDESC];
 
     private:
-        virtual void isr() {};
-
-        typedef vmxnet3_ring<vmxnet3_rx_desc, VMXNET3_MAX_RX_NDESC> _cmdRingT;
-        typedef vmxnet3_ring<vmxnet3_rx_compdesc, VMXNET3_MAX_RX_NCOMPDESC> _compRingT;
-
-        _cmdRingT _cmd_rings[VMXNET3_RXRINGS_PERQ];
-        _compRingT _comp_ring;
+        std::function<void (void)> _isr_handler;
+        virtual void isr() { printf("%s\n", __PRETTY_FUNCTION__); _isr_handler(); };
     };
 
     class vmxnet3_intr_mgr {
@@ -145,24 +156,23 @@ namespace vmware {
     class vmxnet3 : public vmware_driver
                   , protected vmxnet3_isr_thread {
     public:
+        enum {
+            VMXNET3_INIT_GEN = 1,
+
+            // Buffer types
+            VMXNET3_BTYPE_HEAD = 0, // Head only
+            VMXNET3_BTYPE_BODY = 1 // Body only
+        };
         explicit vmxnet3(pci::device& dev);
         virtual ~vmxnet3() {};
 
         virtual const std::string get_name() { return std::string("vmxnet3"); }
 
-        /**
-         * Transmit a single mbuf.
-         * @param m_head a buffer to transmits
-         * @param flush kick() if TRUE
-         * @note should be called under the _tx_ring_lock.
-         *
-         * @return 0 in case of success and an appropriate error code
-         *         otherwise
-         */
-        int tx_locked(struct mbuf* m_head, bool flush = false);
+        void transmit(struct mbuf* m_head);
+        void receive_work();
+        void gc_work();
 
-        // tx ring lock protects this ring for multiple access
-        mutex _tx_ring_lock;
+        mutex _lock;
 
         static hw_driver* probe(hw_device* dev);
     private:
@@ -210,12 +220,24 @@ namespace vmware {
             //Internal device parameters
             VMXNET3_MULTICAST_MAX = 32,
             VMXNET3_MAX_RX_SEGS = 17,
+            VMXNET3_NUM_INTRS = 3,
 
             //Offloading modes
             VMXNET3_OM_NONE = 0,
             VMXNET3_OM_CSUM = 2,
-            VMXNET3_OM_TSO = 3
+            VMXNET3_OM_TSO = 3,
+
+            //RX modes
+            VMXNET3_RXMODE_UCAST = 0x01,
+            VMXNET3_RXMODE_MCAST = 0x02,
+            VMXNET3_RXMODE_BCAST = 0x04,
+            VMXNET3_RXMODE_ALLMULTI = 0x08,
+            VMXNET3_RXMODE_PROMISC = 0x10
         };
+        static inline constexpr u32 VMXNET3_BAR0_IMASK(int irq)
+        {
+            return 0x000 + irq * 8;
+        }
 
         void parse_pci_config();
         void stop();
@@ -231,13 +253,19 @@ namespace vmware {
         static void fill_intr_requirements(T &q, std::vector<vmxnet3_intr_mgr::binding> &ints);
 
         void set_intr_idx(unsigned idx) { _drv_shared.set_evt_intr_idx(static_cast<u8>(idx)); }
-        void disable_interrupt(unsigned idx) {/*TODO: implement me*/}
         virtual void isr() {};
 
         void write_cmd(u32 cmd);
         u32 read_cmd(u32 cmd);
         void get_mac_address(u_int8_t *macaddr);
-        void txq_encap(struct vmxnet3_txqueue &txq, struct mbuf *m_head);
+        void txq_encap(vmxnet3_txqueue &txq, struct mbuf *m_head);
+        void txq_gc(vmxnet3_txqueue &txq);
+        bool txq_gc_avail(vmxnet3_txqueue &txq);
+        void rxq_eof(vmxnet3_rxqueue &rxq);
+        bool rxq_avail(vmxnet3_rxqueue &rxq);
+        void enable_interrupts();
+        void disable_interrupts();
+
         //maintains the vmxnet3 instance number for multiple adapters
         static int _instance;
         int _id;
@@ -252,7 +280,7 @@ namespace vmware {
 
         memory::phys_contiguious_memory _queues_shared_mem;
 
-        vmxnet3_txqueue _txq[VMXNET3_MAX_TX_QUEUES];
+        vmxnet3_txqueue _txq[VMXNET3_TX_QUEUES];
         vmxnet3_rxqueue _rxq[VMXNET3_RX_QUEUES];
 
         memory::phys_contiguious_memory _mcast_list;
