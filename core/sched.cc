@@ -51,6 +51,7 @@ cpu __thread * current_cpu;
 
 unsigned __thread preempt_counter = 1;
 bool __thread need_reschedule = false;
+void *preempt_disabler = nullptr;
 
 elf::tls_data tls;
 
@@ -951,6 +952,7 @@ void thread_handle::wake()
 
 void preempt_disable()
 {
+    preempt_disabler = __builtin_return_address(0);
     ++preempt_counter;
 }
 

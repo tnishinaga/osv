@@ -516,6 +516,9 @@ tooshort:
 	dchg = (odst.s_addr != ip->ip_dst.s_addr);
 	ifp = m->M_dat.MH.MH_pkthdr.rcvif;
 
+        printf("%s src=%s dst=%s\n",
+            __func__, inet_ntoa(ip->ip_src), inet_ntoa(ip->ip_dst));
+
 	if (m->m_hdr.mh_flags & M_FASTFWD_OURS) {
 		m->m_hdr.mh_flags &= ~M_FASTFWD_OURS;
 		goto ours;

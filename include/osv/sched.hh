@@ -24,6 +24,7 @@
 #include <vector>
 #include <osv/rcu.hh>
 #include <osv/clock.hh>
+#include <osv/debug.hh>
 
 // If RUNTIME_PSEUDOFLOAT, runtime_t is a pseudofloat<>. Otherwise, a float.
 #undef RUNTIME_PSEUDOFLOAT
@@ -67,6 +68,7 @@ extern "C" {
 namespace bi = boost::intrusive;
 
 const unsigned max_cpus = sizeof(unsigned long) * 8;
+extern void *preempt_disabler;
 
 class cpu_set {
 public:
@@ -677,6 +679,7 @@ void preempt();
 void preempt_disable() __attribute__((no_instrument_function));
 void preempt_enable() __attribute__((no_instrument_function));
 bool preemptable() __attribute__((no_instrument_function));
+unsigned int get_preempt_counter();
 
 thread* current();
 
@@ -765,7 +768,10 @@ inline
 void thread::do_wait_until(Mutex& mtx, Pred pred)
 {
     assert(arch::irq_enabled());
+    if (!preemptable())
+        printf("preempt_counter:%u\n", get_preempt_counter());
     assert(preemptable());
+
 
     thread* me = current();
 
