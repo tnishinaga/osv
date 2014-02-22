@@ -153,9 +153,8 @@ void vmxnet3_rxqueue::attach(void* storage) {
     vmxnet3_layout_holder::attach(storage);
 }
 
-void vmxnet3_txqueue::init(std::function<void (void)> isr_handler)
+void vmxnet3_txqueue::init()
 {
-    _isr_handler = isr_handler;
     printf("%s cmd_ring=%lx\n",
         __func__, cmd_ring.get_desc_pa());
     printf("%s cmd_ring_len=%zd\n",
@@ -176,12 +175,11 @@ void vmxnet3_txqueue::init(std::function<void (void)> isr_handler)
     layout->driver_data = mmu::virt_to_phys(this);
     layout->driver_data_len = sizeof(*this);
 
-    start_isr_thread();
+//    start_isr_thread();
 }
 
-void vmxnet3_rxqueue::init(std::function<void (void)> isr_handler)
+void vmxnet3_rxqueue::init()
 {
-    _isr_handler = isr_handler;
     for (unsigned i = 0; i < VMXNET3_RXRINGS_PERQ; i++) {
         printf("%s cmd_ring[%d] = %lx\n",
             __PRETTY_FUNCTION__, i, cmd_rings[i].get_desc_pa());
@@ -262,7 +260,7 @@ void vmxnet3_rxqueue::init(std::function<void (void)> isr_handler)
             rxcd.layout->gen);
     }
 #endif
-    start_isr_thread();
+//    start_isr_thread();
 }
 
 void vmxnet3_rxqueue::discard(int rid, int idx)
@@ -310,7 +308,10 @@ int vmxnet3_rxqueue::newbuf(int rid)
         clsize = MJUMPAGESIZE;
         btype = vmxnet3::VMXNET3_BTYPE_BODY;
     }
+//    arch::irq_flag flag;
+//    arch::irq_enable();
     auto m = m_getjcl(M_NOWAIT, MT_DATA, flags, clsize);
+//    flag.restore();
     if (m == NULL)
         return -1;
     if (btype == vmxnet3::VMXNET3_BTYPE_HEAD) {
@@ -343,13 +344,16 @@ int vmxnet3_rxqueue::newbuf(int rid)
 
 vmxnet3::vmxnet3(pci::device &dev)
     : vmware_driver(dev)
+    , _msi(&dev)
     , _drv_shared_mem(vmxnet3_drv_shared::size(),
                         VMXNET3_DRIVER_SHARED_ALIGN)
     , _queues_shared_mem(vmxnet3_txq_shared::size() * VMXNET3_TX_QUEUES +
                             vmxnet3_rxq_shared::size() * VMXNET3_RX_QUEUES,
                             VMXNET3_QUEUES_SHARED_ALIGN)
     , _mcast_list(VMXNET3_MULTICAST_MAX * VMXNET3_ETH_ALEN, VMXNET3_MULTICAST_ALIGN)
-    , _int_mgr(&dev, [this] (unsigned idx) { /* this->disable_interrupt(idx); */ })
+//    , _int_mgr(&dev, [this] (unsigned idx) { this->disable_interrupt(idx); })
+//    , _gc_task([&] { printf("%s\n", __PRETTY_FUNCTION__); gc_work(); }, sched::thread::attr().name("vmxnet3-gc"))
+    , _receive_task([&] { printf("%s\n", __PRETTY_FUNCTION__); receive_work(); }, sched::thread::attr().name("vmxnet3-receive"))
 {
     parse_pci_config();
     stop();
@@ -363,8 +367,10 @@ vmxnet3::vmxnet3(pci::device &dev)
     allocate_interrupts();
     fill_driver_shared();
 
-    start_isr_thread();
+//    start_isr_thread();
     enable_device();
+
+    dump_config();
 
     //initialize the BSD interface _if
     _ifn = if_alloc(IFT_ETHER);
@@ -391,9 +397,16 @@ vmxnet3::vmxnet3(pci::device &dev)
     u_int8_t macaddr[6];
     get_mac_address(macaddr);
     ether_ifattach(_ifn, macaddr);
+    printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
+//    _gc_task.start();
+    printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
+    _receive_task.start();
+    printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 //    enable_interrupts();
+    printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 }
 
+/*
 template <class T>
 void vmxnet3::fill_intr_requirement(T *entry, std::vector<vmxnet3_intr_mgr::binding> &ints)
 {
@@ -411,9 +424,19 @@ void vmxnet3::fill_intr_requirements(T &entries, std::vector<vmxnet3_intr_mgr::b
         fill_intr_requirement(&entry, ints);
     }
 }
+*/
 
 void vmxnet3::allocate_interrupts()
 {
+#if 0
+    _msi.easy_register({
+        { 0, [&] { printf("%s\n", __PRETTY_FUNCTION__); disable_interrupt(0); },  &_gc_task },
+        { 1, [&] { printf("%s\n", __PRETTY_FUNCTION__); disable_interrupt(1); }, &_receive_task }
+    });
+    _txq[0].layout->intr_idx = 0;
+    _rxq[0].layout->intr_idx = 1;
+#endif
+/*
     std::vector<vmxnet3_intr_mgr::binding> ints;
 
     fill_intr_requirements(_txq, ints);
@@ -422,18 +445,32 @@ void vmxnet3::allocate_interrupts()
 
     auto intr_cfg = read_cmd(VMXNET3_CMD_GET_INTRCFG);
     _int_mgr.easy_register(intr_cfg, ints);
+*/
 }
 
 void vmxnet3::enable_interrupts()
 {
-    for (unsigned irq = 0; irq < VMXNET3_NUM_INTRS; irq++)
-        _bar0->writel(VMXNET3_BAR0_IMASK(irq), 0);
+#if 0
+    for (unsigned idx = 0; idx < VMXNET3_NUM_INTRS; idx++)
+        enable_interrupt(idx);
+#endif
+    enable_interrupt(1);
+}
+
+void vmxnet3::enable_interrupt(unsigned idx)
+{
+    _bar0->writel(VMXNET3_BAR0_IMASK(idx), 0);
 }
 
 void vmxnet3::disable_interrupts()
 {
-    for (unsigned irq = 0; irq < VMXNET3_NUM_INTRS; irq++)
-        _bar0->writel(VMXNET3_BAR0_IMASK(irq), 1);
+    for (unsigned idx = 0; idx < VMXNET3_NUM_INTRS; idx++)
+        disable_interrupt(idx);
+}
+
+void vmxnet3::disable_interrupt(unsigned idx)
+{
+    _bar0->writel(VMXNET3_BAR0_IMASK(idx), 1);
 }
 
 void vmxnet3::attach_queues_shared()
@@ -444,13 +481,11 @@ void vmxnet3::attach_queues_shared()
     slice_memory(va, _rxq);
 
     for (auto &q : _txq) {
-        q.init([&] { printf("%s\n", __PRETTY_FUNCTION__); /* gc_work(); */} );
+        q.init();
     }
     for (auto &q : _rxq) {
-        q.init([&] { printf("%s\n", __PRETTY_FUNCTION__); /* receive_work(); */} );
+        q.init();
     }
-    sched::thread rx_thread([&] { receive_work(); });
-    rx_thread.start();
 }
 
 void vmxnet3::fill_driver_shared()
@@ -466,8 +501,11 @@ void vmxnet3::fill_driver_shared()
     _drv_shared.set_max_sg_len(VMXNET3_MAX_RX_SEGS);
     _drv_shared.set_mcast_table(_mcast_list.get_pa(),
                                 _mcast_list.get_size());
+#if 0
     _drv_shared.set_intr_config(static_cast<u8>(_int_mgr.interrupts_number()),
                                 static_cast<u8>(_int_mgr.is_automask()));
+#endif
+    _drv_shared.set_intr_config(2, 0);
     _drv_shared.layout->upt_features = 0;
     _drv_shared.layout->mtu = 1500;
     _drv_shared.layout->ntxqueue = 1;
@@ -555,7 +593,7 @@ u32 vmxnet3::read_cmd(u32 cmd)
 
 void vmxnet3::transmit(struct mbuf *m)
 {
-    WITH_LOCK(_lock) {
+    WITH_LOCK(_txq_lock) {
         printf("%s m=%p\n", __PRETTY_FUNCTION__, m);
         txq_encap(_txq[0], m);
     }
@@ -564,9 +602,12 @@ void vmxnet3::transmit(struct mbuf *m)
 void vmxnet3::gc_work()
 {
     while(1) {
-        WITH_LOCK(_lock) {
-            sched::thread::wait_until(_lock, [&] { return txq_gc_avail(_txq[0]); });
-            printf("%s\n", __PRETTY_FUNCTION__);
+        arch::irq_flag flag;
+        arch::irq_enable();
+        sched::thread::sleep(std::chrono::milliseconds(500));
+        flag.restore();
+        WITH_LOCK(_txq_lock) {
+//            sched::thread::wait_until(_txq_lock, [&] { printf("%s\n", __PRETTY_FUNCTION__);return txq_gc_avail(_txq[0]); });
 
             txq_gc(_txq[0]);
         }
@@ -576,12 +617,53 @@ void vmxnet3::gc_work()
 void vmxnet3::receive_work()
 {
     while(1) {
-        WITH_LOCK(_lock) {
-//            sched::thread::wait_until(_lock, [&] { return rxq_avail(_rxq[0]); });
-            sched::thread::sleep(std::chrono::milliseconds(100));
-            printf("%s\n", __PRETTY_FUNCTION__);
-            rxq_eof(_rxq[0]);
+        arch::irq_flag flag;
+        arch::irq_enable();
+//        printf("%s:%d preempt_counter:%u preemptable:%d\n", __PRETTY_FUNCTION__, __LINE__,
+//            sched::get_preempt_counter(), sched::preemptable());
+        if (!sched::preemptable()) {
+            sched::preempt_enable();
+//            printf("%s:%d preempt_counter:%u preemptable:%d\n", __PRETTY_FUNCTION__, __LINE__,
+//                sched::get_preempt_counter(), sched::preemptable());
         }
+#if 0
+        auto preempt = sched::preemptable();
+        if (!preempt) {
+            sched::preempt_enable();
+            printf("%s:%d after enable preempt_counter:%u\n", __PRETTY_FUNCTION__, __LINE__,
+                sched::get_preempt_counter());
+        }
+#endif
+#if 0
+        sched::thread::wait_until([&] {
+            printf("%s\n", __PRETTY_FUNCTION__);
+            WITH_LOCK(_rxq_lock)
+                return rxq_avail(_rxq[0]);
+        });
+#endif
+        sched::thread::sleep(std::chrono::milliseconds(500));
+#if 0
+        if (!preempt)
+            sched::preempt_disable();
+#endif
+        sched::preempt_disable();
+        flag.restore();
+//        printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
+        WITH_LOCK(_rxq_lock) {
+//            printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
+            rxq_eof(_rxq[0]);
+//            printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
+        }
+#if 0
+        WITH_LOCK(_rxq_lock) {
+            printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
+            printf("%s addr=%p\n", __func__, sched::preempt_disabler);
+            sched::thread::wait_until(_rxq_lock, [&] { printf("%s\n", __PRETTY_FUNCTION__);return rxq_avail(_rxq[0]); });
+            printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
+            rxq_eof(_rxq[0]);
+            printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
+        }
+#endif
     }
 }
 
@@ -632,7 +714,6 @@ void vmxnet3::txq_gc(vmxnet3_txqueue &txq)
 {
     auto &txc = txq.comp_ring;
     while(1) {
-        printf("%s\n", __PRETTY_FUNCTION__);
         auto &txcd = txc.get_desc(txc.next);
         if (txcd.layout->gen != txc.gen)
             break;
@@ -669,13 +750,14 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
     auto &rxc = rxq.comp_ring;
     struct mbuf *m_head = NULL, *m_tail = NULL;
 
-    printf("%s rxc next:%d gen:%d\n", __PRETTY_FUNCTION__,
-        rxc.next, rxc.gen);
+//    printf("%s rxc next:%d gen:%d\n", __PRETTY_FUNCTION__,
+//        rxc.next, rxc.gen);
 
     while(1) {
         auto &rxcd = rxc.get_desc(rxc.next);
         assert(rxcd.layout->qid <= 2);
 
+#if 0
         printf("%s rxcd rxd_idx:%u eop:%u sop:%u qid:%u len:%u udp:%u tcp:%u ipv6:%u ipv4:%u type:%u gen:%u\n",
             __PRETTY_FUNCTION__,
             rxcd.layout->rxd_idx,
@@ -689,6 +771,7 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
             rxcd.layout->ipv4,
             rxcd.layout->type,
             rxcd.layout->gen);
+#endif
 
         if (rxcd.layout->gen != rxc.gen)
             break;
@@ -705,6 +788,7 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
         auto &rxr = rxq.cmd_rings[rid];
         auto &rxd = rxr.get_desc(idx);
         auto m = rxq.buf[rid][idx];
+#if 0
         printf("%s rid=%u idx=%u\n", __PRETTY_FUNCTION__, rid, idx);
         printf("%s rxd addr:%lx len:%u btype:%u dtype:%u gen:%u\n",
             __PRETTY_FUNCTION__,
@@ -716,6 +800,7 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
         printf("%s m data=%p\n",
             __PRETTY_FUNCTION__,
             mmu::virt_to_phys(m->m_hdr.mh_data));
+#endif
         assert(m != NULL);
 
         if (rxr.fill != idx) {
@@ -806,6 +891,7 @@ void vmxnet3::get_mac_address(u_int8_t *macaddr)
     macaddr[5] = mach >> 8;
 }
 
+#if 0
 void vmxnet3_intr_mgr::easy_register_msix(const std::vector<binding> &bindings)
 {
     std::vector<msix_binding> msix_vec;
@@ -866,6 +952,7 @@ void vmxnet3_intr_mgr::easy_unregister()
         _num_interrupts = 0;
     }
 }
+#endif
 
 template<class DescT, int NDesc>
 void vmxnet3_ring<DescT, NDesc>::increment_fill()

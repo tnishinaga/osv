@@ -47,6 +47,7 @@ namespace vmware {
             DescT      _desc[NDesc];
         };
 
+#if 0
     class vmxnet3_isr_thread {
     public:
         vmxnet3_isr_thread()
@@ -60,11 +61,12 @@ namespace vmware {
         sched::thread isr_thread;
         unsigned _intr_idx = 0;
     };
+#endif
 
     class vmxnet3_txqueue : public vmxnet3_txq_shared
-                          , public vmxnet3_isr_thread {
+                          /* , public vmxnet3_isr_thread */ {
     public:
-        void init(std::function<void (void)> isr_handler);
+        void init();
         void set_intr_idx(unsigned idx) { layout->intr_idx = static_cast<u8>(idx); }
         int enqueue(struct mbuf *m);
         void attach(void* storage);
@@ -81,9 +83,9 @@ namespace vmware {
     };
 
     class vmxnet3_rxqueue : public vmxnet3_rxq_shared
-                          , public vmxnet3_isr_thread {
+                          /* , public vmxnet3_isr_thread */ {
     public:
-        void init(std::function<void (void)> isr_handler);
+        void init();
         void set_intr_idx(unsigned idx) { layout->intr_idx = static_cast<u8>(idx); }
         void discard(int rid, int idx);
         void discard_chain(int rid);
@@ -102,6 +104,7 @@ namespace vmware {
         virtual void isr() { printf("%s\n", __PRETTY_FUNCTION__); _isr_handler(); };
     };
 
+/*
     class vmxnet3_intr_mgr {
     public:
         struct binding {
@@ -152,9 +155,10 @@ namespace vmware {
         unsigned _num_interrupts = 0;
         std::function<void (unsigned idx)> _disable_int;
     };
+*/
 
     class vmxnet3 : public vmware_driver
-                  , protected vmxnet3_isr_thread {
+                  /* , protected vmxnet3_isr_thread */ {
     public:
         enum {
             VMXNET3_INIT_GEN = 1,
@@ -171,8 +175,6 @@ namespace vmware {
         void transmit(struct mbuf* m_head);
         void receive_work();
         void gc_work();
-
-        mutex _lock;
 
         static hw_driver* probe(hw_device* dev);
     private:
@@ -247,10 +249,12 @@ namespace vmware {
         void fill_driver_shared();
         void allocate_interrupts();
 
+/*
         template <class T>
         static void fill_intr_requirement(T *q, std::vector<vmxnet3_intr_mgr::binding> &ints);
         template <class T>
         static void fill_intr_requirements(T &q, std::vector<vmxnet3_intr_mgr::binding> &ints);
+*/
 
         void set_intr_idx(unsigned idx) { _drv_shared.set_evt_intr_idx(static_cast<u8>(idx)); }
         virtual void isr() {};
@@ -264,12 +268,16 @@ namespace vmware {
         void rxq_eof(vmxnet3_rxqueue &rxq);
         bool rxq_avail(vmxnet3_rxqueue &rxq);
         void enable_interrupts();
+        void enable_interrupt(unsigned idx);
         void disable_interrupts();
+        void disable_interrupt(unsigned idx);
 
         //maintains the vmxnet3 instance number for multiple adapters
         static int _instance;
         int _id;
         struct ifnet* _ifn;
+
+        interrupt_manager _msi;
 
         //Shared memory
         pci::bar *_bar0 = nullptr;
@@ -285,8 +293,14 @@ namespace vmware {
 
         memory::phys_contiguious_memory _mcast_list;
 
+        mutex _txq_lock;
+        mutex _rxq_lock;
+
+//        sched::thread _gc_task;
+        sched::thread _receive_task;
+
         //Interrupt manager
-        vmxnet3_intr_mgr _int_mgr;
+//        vmxnet3_intr_mgr _int_mgr;
     };
 }
 
