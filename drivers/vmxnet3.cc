@@ -112,7 +112,7 @@ static int if_transmit(struct ifnet* ifp, struct mbuf* m_head)
 {
     vmxnet3* vmx = (vmxnet3*)ifp->if_softc;
 
-    vmxnet3_d("*** processing packet! ***");
+    printf("%s m=%p\n", __PRETTY_FUNCTION__, m_head);
 
     vmx->transmit(m_head);
 
@@ -144,17 +144,18 @@ template<class T> void slice_memory(void *&va, T &holder)
 }
 
 void vmxnet3_txqueue::attach(void* storage) {
-    printf("%s storage=%p pa=%lx\n", __PRETTY_FUNCTION__, storage, mmu::virt_to_phys(storage));
+//    printf("%s storage=%p pa=%lx\n", __PRETTY_FUNCTION__, storage, mmu::virt_to_phys(storage));
     vmxnet3_layout_holder::attach(storage);
 }
 
 void vmxnet3_rxqueue::attach(void* storage) {
-    printf("%s storage=%p pa=%lx\n", __PRETTY_FUNCTION__, storage, mmu::virt_to_phys(storage));
+//    printf("%s storage=%p pa=%lx\n", __PRETTY_FUNCTION__, storage, mmu::virt_to_phys(storage));
     vmxnet3_layout_holder::attach(storage);
 }
 
 void vmxnet3_txqueue::init()
 {
+#if 0
     printf("%s cmd_ring=%lx\n",
         __func__, cmd_ring.get_desc_pa());
     printf("%s cmd_ring_len=%zd\n",
@@ -167,6 +168,7 @@ void vmxnet3_txqueue::init()
         __func__, mmu::virt_to_phys(this));
     printf("%s driver_data_len=%zd\n",
         __func__, sizeof(*this));
+#endif
     layout->cmd_ring = cmd_ring.get_desc_pa();
     layout->cmd_ring_len = cmd_ring.get_desc_num();
     layout->comp_ring = comp_ring.get_desc_pa();
@@ -181,24 +183,24 @@ void vmxnet3_txqueue::init()
 void vmxnet3_rxqueue::init()
 {
     for (unsigned i = 0; i < VMXNET3_RXRINGS_PERQ; i++) {
-        printf("%s cmd_ring[%d] = %lx\n",
-            __PRETTY_FUNCTION__, i, cmd_rings[i].get_desc_pa());
-        printf("%s cmd_ring_len[%d] = %u\n",
-            __PRETTY_FUNCTION__, i, cmd_rings[i].get_desc_num());
+//        printf("%s cmd_ring[%d] = %lx\n",
+//            __PRETTY_FUNCTION__, i, cmd_rings[i].get_desc_pa());
+//        printf("%s cmd_ring_len[%d] = %u\n",
+//            __PRETTY_FUNCTION__, i, cmd_rings[i].get_desc_num());
         layout->cmd_ring[i] = cmd_rings[i].get_desc_pa();
         layout->cmd_ring_len[i] = cmd_rings[i].get_desc_num();
     }
-    printf("%s comp_ring = %lx\n",
-        __PRETTY_FUNCTION__, comp_ring.get_desc_pa());
-    printf("%s com_ring_len = %u\n",
-        __PRETTY_FUNCTION__, comp_ring.get_desc_num());
+//    printf("%s comp_ring = %lx\n",
+//        __PRETTY_FUNCTION__, comp_ring.get_desc_pa());
+//    printf("%s com_ring_len = %u\n",
+//        __PRETTY_FUNCTION__, comp_ring.get_desc_num());
 
     layout->comp_ring = comp_ring.get_desc_pa();
     layout->comp_ring_len = comp_ring.get_desc_num();
-    printf("%s driver_data = %lx\n",
-        __PRETTY_FUNCTION__, mmu::virt_to_phys(this));
-    printf("%s driver_data_len = %u\n",
-        __PRETTY_FUNCTION__, sizeof(*this));
+//    printf("%s driver_data = %lx\n",
+//        __PRETTY_FUNCTION__, mmu::virt_to_phys(this));
+//    printf("%s driver_data_len = %u\n",
+//        __PRETTY_FUNCTION__, sizeof(*this));
 
     layout->driver_data = mmu::virt_to_phys(this);
     layout->driver_data_len = sizeof(*this);
@@ -308,10 +310,7 @@ int vmxnet3_rxqueue::newbuf(int rid)
         clsize = MJUMPAGESIZE;
         btype = vmxnet3::VMXNET3_BTYPE_BODY;
     }
-//    arch::irq_flag flag;
-//    arch::irq_enable();
     auto m = m_getjcl(M_NOWAIT, MT_DATA, flags, clsize);
-//    flag.restore();
     if (m == NULL)
         return -1;
     if (btype == vmxnet3::VMXNET3_BTYPE_HEAD) {
@@ -353,8 +352,11 @@ vmxnet3::vmxnet3(pci::device &dev)
     , _mcast_list(VMXNET3_MULTICAST_MAX * VMXNET3_ETH_ALEN, VMXNET3_MULTICAST_ALIGN)
 //    , _int_mgr(&dev, [this] (unsigned idx) { this->disable_interrupt(idx); })
 //    , _gc_task([&] { printf("%s\n", __PRETTY_FUNCTION__); gc_work(); }, sched::thread::attr().name("vmxnet3-gc"))
-    , _receive_task([&] { printf("%s\n", __PRETTY_FUNCTION__); receive_work(); }, sched::thread::attr().name("vmxnet3-receive"))
+    , _receive_task([&] { receive_work(); }, sched::thread::attr().name("vmxnet3-receive"))
 {
+//    _txq_lock.lock();
+//    _rxq_lock.lock();
+    assert(dev.is_msix());
     parse_pci_config();
     stop();
     disable_interrupts();
@@ -390,20 +392,18 @@ vmxnet3::vmxnet3(pci::device &dev)
     _ifn->if_qflush = if_qflush;
     _ifn->if_init = if_init;
     _ifn->if_getinfo = if_getinfo;
-    IFQ_SET_MAXLEN(&_ifn->if_snd, 1);
+    IFQ_SET_MAXLEN(&_ifn->if_snd, VMXNET3_MAX_TX_NDESC);
 
     _ifn->if_capabilities = 0;
 
     u_int8_t macaddr[6];
     get_mac_address(macaddr);
     ether_ifattach(_ifn, macaddr);
-    printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 //    _gc_task.start();
-    printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
+//    _rxq_lock.unlock();
+//    _txq_lock.unlock();
     _receive_task.start();
-    printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
-//    enable_interrupts();
-    printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
+    enable_interrupts();
 }
 
 /*
@@ -428,14 +428,12 @@ void vmxnet3::fill_intr_requirements(T &entries, std::vector<vmxnet3_intr_mgr::b
 
 void vmxnet3::allocate_interrupts()
 {
-#if 0
     _msi.easy_register({
-        { 0, [&] { printf("%s\n", __PRETTY_FUNCTION__); disable_interrupt(0); },  &_gc_task },
-        { 1, [&] { printf("%s\n", __PRETTY_FUNCTION__); disable_interrupt(1); }, &_receive_task }
+        { 0, [&] { disable_interrupt(0); },  /* &_gc_task */ nullptr },
+        { 1, [&] { disable_interrupt(1); }, &_receive_task }
     });
     _txq[0].layout->intr_idx = 0;
     _rxq[0].layout->intr_idx = 1;
-#endif
 /*
     std::vector<vmxnet3_intr_mgr::binding> ints;
 
@@ -491,13 +489,13 @@ void vmxnet3::attach_queues_shared()
 void vmxnet3::fill_driver_shared()
 {
     _drv_shared.set_driver_data(mmu::virt_to_phys(this), sizeof(*this));
-    printf("%s driver_data=%lx driver_data_len=%zd\n",
-        __func__, mmu::virt_to_phys(this), sizeof(*this));
+//    printf("%s driver_data=%lx driver_data_len=%zd\n",
+//        __func__, mmu::virt_to_phys(this), sizeof(*this));
     _drv_shared.set_queue_shared(_queues_shared_mem.get_pa(),
                                  _queues_shared_mem.get_size());
-    printf("%s queue_shared=%lx queue_shared_len=%zd\n",
-        __func__, _queues_shared_mem.get_pa(),
-        _queues_shared_mem.get_size());
+//    printf("%s queue_shared=%lx queue_shared_len=%zd\n",
+//        __func__, _queues_shared_mem.get_pa(),
+//        _queues_shared_mem.get_size());
     _drv_shared.set_max_sg_len(VMXNET3_MAX_RX_SEGS);
     _drv_shared.set_mcast_table(_mcast_list.get_pa(),
                                 _mcast_list.get_size());
@@ -511,8 +509,8 @@ void vmxnet3::fill_driver_shared()
     _drv_shared.layout->ntxqueue = 1;
     _drv_shared.layout->nrxqueue = 1;
     _drv_shared.layout->rxmode = VMXNET3_RXMODE_UCAST | VMXNET3_RXMODE_BCAST | VMXNET3_RXMODE_ALLMULTI | VMXNET3_RXMODE_MCAST;
-    printf("%s drv_shared_mem=%lx\n",
-        __func__, _drv_shared_mem.get_pa());
+//    printf("%s drv_shared_mem=%lx\n",
+//        __func__, _drv_shared_mem.get_pa());
     _bar1->writel(VMXNET3_BAR1_DSL, _drv_shared_mem.get_pa());
     _bar1->writel(VMXNET3_BAR1_DSH,
         reinterpret_cast<u64>(_drv_shared_mem.get_pa()) >> 32);
@@ -596,74 +594,59 @@ void vmxnet3::transmit(struct mbuf *m)
     WITH_LOCK(_txq_lock) {
         printf("%s m=%p\n", __PRETTY_FUNCTION__, m);
         txq_encap(_txq[0], m);
+        if (txq_gc_avail(_txq[0]))
+            txq_gc(_txq[0]);
     }
 }
 
+#if 0
 void vmxnet3::gc_work()
 {
     while(1) {
         arch::irq_flag flag;
         arch::irq_enable();
-        sched::thread::sleep(std::chrono::milliseconds(500));
-        flag.restore();
-        WITH_LOCK(_txq_lock) {
-//            sched::thread::wait_until(_txq_lock, [&] { printf("%s\n", __PRETTY_FUNCTION__);return txq_gc_avail(_txq[0]); });
+        enable_interrupt(0);
+        auto preemptable = sched::preemptable();
+        if (!preemptable)
+            sched::preempt_enable();
 
+        sched::thread::wait_until(_txq_lock, [&] {
+//            printf("%s\n", __PRETTY_FUNCTION__);
+            WITH_LOCK (_txq_lock)
+                return txq_gc_avail(_txq[0]);
+        });
+//        sched::thread::sleep(std::chrono::milliseconds(500));
+        flag.restore();
+        WITH_LOCK(_txq_lock)
             txq_gc(_txq[0]);
-        }
     }
 }
+#endif
 
 void vmxnet3::receive_work()
 {
     while(1) {
+        enable_interrupt(1);
+#if 0
         arch::irq_flag flag;
         arch::irq_enable();
-//        printf("%s:%d preempt_counter:%u preemptable:%d\n", __PRETTY_FUNCTION__, __LINE__,
-//            sched::get_preempt_counter(), sched::preemptable());
-        if (!sched::preemptable()) {
+        enable_interrupt(1);
+        auto preemptable = sched::preemptable();
+        if (!preemptable)
             sched::preempt_enable();
-//            printf("%s:%d preempt_counter:%u preemptable:%d\n", __PRETTY_FUNCTION__, __LINE__,
-//                sched::get_preempt_counter(), sched::preemptable());
-        }
-#if 0
-        auto preempt = sched::preemptable();
-        if (!preempt) {
-            sched::preempt_enable();
-            printf("%s:%d after enable preempt_counter:%u\n", __PRETTY_FUNCTION__, __LINE__,
-                sched::get_preempt_counter());
-        }
 #endif
-#if 0
         sched::thread::wait_until([&] {
-            printf("%s\n", __PRETTY_FUNCTION__);
             WITH_LOCK(_rxq_lock)
                 return rxq_avail(_rxq[0]);
         });
-#endif
-        sched::thread::sleep(std::chrono::milliseconds(500));
+//        sched::thread::sleep(std::chrono::milliseconds(500));
 #if 0
-        if (!preempt)
+        if (!preemptable)
             sched::preempt_disable();
-#endif
-        sched::preempt_disable();
         flag.restore();
-//        printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
-        WITH_LOCK(_rxq_lock) {
-//            printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
-            rxq_eof(_rxq[0]);
-//            printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
-        }
-#if 0
-        WITH_LOCK(_rxq_lock) {
-            printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
-            printf("%s addr=%p\n", __func__, sched::preempt_disabler);
-            sched::thread::wait_until(_rxq_lock, [&] { printf("%s\n", __PRETTY_FUNCTION__);return rxq_avail(_rxq[0]); });
-            printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
-            rxq_eof(_rxq[0]);
-            printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
-        }
 #endif
+        WITH_LOCK(_rxq_lock)
+            rxq_eof(_rxq[0]);
     }
 }
 
@@ -727,7 +710,7 @@ void vmxnet3::txq_gc(vmxnet3_txqueue &txq)
         auto m = txq.buf[sop];
 
         if (m) {
-            printf("%s m_freem(%p)\n", __PRETTY_FUNCTION__, m);
+//            printf("%s m_freem(%p)\n", __PRETTY_FUNCTION__, m);
             m_freem(m);
             txq.buf[sop] = NULL;
         }
@@ -741,7 +724,7 @@ bool vmxnet3::txq_gc_avail(vmxnet3_txqueue &txq)
 {
     auto &txc = txq.comp_ring;
     auto &txcd = txc.get_desc(txc.next);
-    printf("%s avail?=%d\n", __PRETTY_FUNCTION__, (txcd.layout->gen == txc.gen));
+//    printf("%s avail?=%d\n", __PRETTY_FUNCTION__, (txcd.layout->gen == txc.gen));
     return (txcd.layout->gen == txc.gen);
 }
 
@@ -756,22 +739,6 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
     while(1) {
         auto &rxcd = rxc.get_desc(rxc.next);
         assert(rxcd.layout->qid <= 2);
-
-#if 0
-        printf("%s rxcd rxd_idx:%u eop:%u sop:%u qid:%u len:%u udp:%u tcp:%u ipv6:%u ipv4:%u type:%u gen:%u\n",
-            __PRETTY_FUNCTION__,
-            rxcd.layout->rxd_idx,
-            rxcd.layout->eop,
-            rxcd.layout->sop,
-            rxcd.layout->qid,
-            rxcd.layout->len,
-            rxcd.layout->udp,
-            rxcd.layout->tcp,
-            rxcd.layout->ipv6,
-            rxcd.layout->ipv4,
-            rxcd.layout->type,
-            rxcd.layout->gen);
-#endif
 
         if (rxcd.layout->gen != rxc.gen)
             break;
@@ -788,7 +755,22 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
         auto &rxr = rxq.cmd_rings[rid];
         auto &rxd = rxr.get_desc(idx);
         auto m = rxq.buf[rid][idx];
+
 #if 0
+        printf("%s rxcd rxd_idx:%u eop:%u sop:%u qid:%u len:%u udp:%u tcp:%u ipv6:%u ipv4:%u type:%u gen:%u\n",
+            __PRETTY_FUNCTION__,
+            rxcd.layout->rxd_idx,
+            rxcd.layout->eop,
+            rxcd.layout->sop,
+            rxcd.layout->qid,
+            rxcd.layout->len,
+            rxcd.layout->udp,
+            rxcd.layout->tcp,
+            rxcd.layout->ipv6,
+            rxcd.layout->ipv4,
+            rxcd.layout->type,
+            rxcd.layout->gen);
+
         printf("%s rid=%u idx=%u\n", __PRETTY_FUNCTION__, rid, idx);
         printf("%s rxd addr:%lx len:%u btype:%u dtype:%u gen:%u\n",
             __PRETTY_FUNCTION__,
@@ -852,8 +834,8 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
         }
 
         if (rxcd.layout->eop) {
-            printf("%s if_input m=%p\n",
-                __PRETTY_FUNCTION__, m);
+//            printf("%s if_input m=%p\n",
+//                __PRETTY_FUNCTION__, m);
             (*_ifn->if_input)(_ifn, m);
             m_head = m_tail = NULL;
         }
@@ -875,7 +857,7 @@ bool vmxnet3::rxq_avail(vmxnet3_rxqueue &rxq)
     auto &rxcd = rxc.get_desc(rxc.next);
     assert(rxcd.layout->qid <= 2);
 
-    printf("%s avail?=%d\n", __PRETTY_FUNCTION__, (rxcd.layout->gen == rxc.gen));
+//    printf("%s avail?=%d\n", __PRETTY_FUNCTION__, (rxcd.layout->gen == rxc.gen));
     return (rxcd.layout->gen == rxc.gen);
 }
 
