@@ -305,7 +305,6 @@ namespace vmware {
     class vmxnet3_rxq_shared
         : public vmxnet3_layout_holder<vmxnet3_rxq_shared_layout> {
     };
-
 }
 
 #endif // VIRTIO_VRING_H

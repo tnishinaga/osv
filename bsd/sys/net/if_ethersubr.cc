@@ -268,6 +268,22 @@ ether_output(struct ifnet *ifp, struct mbuf *m,
 		(void)memcpy(eh->ether_shost, IF_LLADDR(ifp),
 			sizeof(eh->ether_shost));
 
+        debugf("%s dhost=%x:%x:%x:%x:%x:%x shost=%x:%x:%x:%x:%x:%x etype=%x\n",
+            __func__,
+            eh->ether_dhost[0],
+            eh->ether_dhost[1],
+            eh->ether_dhost[2],
+            eh->ether_dhost[3],
+            eh->ether_dhost[4],
+            eh->ether_dhost[5],
+            eh->ether_shost[0],
+            eh->ether_shost[1],
+            eh->ether_shost[2],
+            eh->ether_shost[3],
+            eh->ether_shost[4],
+            eh->ether_shost[5],
+            type);
+
 	/*
 	 * If a simplex interface, and the packet is being sent to our
 	 * Ethernet address or a broadcast address, loopback a copy.
@@ -544,7 +560,8 @@ ether_preprocess_packet(struct ifnet *ifp, struct mbuf *m, uint16_t& ether_type)
 	}
 	eh = mtod(m, struct ether_header *);
 	etype = ntohs(eh->ether_type);
-        printf("%s dhost=%x:%x:%x:%x:%x:%x shost=%x:%x:%x:%x:%x:%x etype=%x\n",
+#if 0
+        debugf("%s dhost=%x:%x:%x:%x:%x:%x shost=%x:%x:%x:%x:%x:%x etype=%x\n",
             __func__,
             eh->ether_dhost[0],
             eh->ether_dhost[1],
@@ -558,7 +575,8 @@ ether_preprocess_packet(struct ifnet *ifp, struct mbuf *m, uint16_t& ether_type)
             eh->ether_shost[3],
             eh->ether_shost[4],
             eh->ether_shost[5],
-            ntohs(eh->ether_type));
+            etype);
+#endif
 	if (m->M_dat.MH.MH_pkthdr.rcvif == NULL) {
 		if_printf(ifp, "discard frame w/o interface pointer\n");
 		ifp->if_ierrors++;
@@ -841,7 +859,6 @@ ether_demux(struct ifnet *ifp, struct mbuf *m, uint16_t ether_type)
 	switch (ether_type) {
 #ifdef INET
 	case ETHERTYPE_IP:
-            printf("%s ETHERTYPE_IP m=%p\n", __PRETTY_FUNCTION__, m);
 #if 0
 	    /* FIXME: OSv - port ip fast forward to get perf gain */
 	    if ((m = ip_fastforward(m)) == NULL)
@@ -851,7 +868,6 @@ ether_demux(struct ifnet *ifp, struct mbuf *m, uint16_t ether_type)
 		break;
 
 	case ETHERTYPE_ARP:
-                printf("%s ETHERTYPE_ARP m=%p\n", __PRETTY_FUNCTION__, m);
 		if (ifp->if_flags & IFF_NOARP) {
 			/* Discard packet if ARP is disabled on interface */
 			m_freem(m);

@@ -410,6 +410,7 @@ arpintr(struct mbuf *m)
 	if (m->m_hdr.mh_len < sizeof(struct arphdr) &&
 	    ((m = m_pullup(m, sizeof(struct arphdr))) == NULL)) {
 		bsd_log(LOG_NOTICE, "arp: runt packet -- m_pullup failed\n");
+                printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 		return;
 	}
 	ar = mtod(m, struct arphdr *);
@@ -423,6 +424,7 @@ arpintr(struct mbuf *m)
 		    " (from %*D to %*D)\n", (unsigned char *)&ar->ar_hrd, "",
 		    ETHER_ADDR_LEN, (u_char *)ar_sha(ar), ":",
 		    ETHER_ADDR_LEN, (u_char *)ar_tha(ar), ":");
+                printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 		m_freem(m);
 		return;
 	}
@@ -431,6 +433,7 @@ arpintr(struct mbuf *m)
 		if ((m = m_pullup(m, arphdr_len(ar))) == NULL) {
 			bsd_log(LOG_NOTICE, "arp: runt packet\n");
 			m_freem(m);
+                        printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 			return;
 		}
 		ar = mtod(m, struct arphdr *);
@@ -500,6 +503,8 @@ in_arpinput(struct mbuf *m)
 	sin.sin_family = AF_INET;
 	sin.sin_addr.s_addr = 0;
 
+        printf("%s:%d m=%p\n", __PRETTY_FUNCTION__, __LINE__, m);
+
 	if (ifp->if_bridge)
 		bridged = 1;
 	if (ifp->if_type == IFT_BRIDGE)
@@ -508,6 +513,7 @@ in_arpinput(struct mbuf *m)
 	req_len = arphdr_len2(ifp->if_addrlen, sizeof(struct in_addr));
 	if (m->m_hdr.mh_len < req_len && (m = m_pullup(m, req_len)) == NULL) {
 		bsd_log(LOG_NOTICE, "in_arp: runt packet -- m_pullup failed\n");
+                printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 		return;
 	}
 
@@ -519,12 +525,14 @@ in_arpinput(struct mbuf *m)
 	if (ah->ar_pln != sizeof(struct in_addr)) {
 		bsd_log(LOG_NOTICE, "in_arp: requested protocol length != %zu\n",
 		    sizeof(struct in_addr));
+                printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 		return;
 	}
 
 	if (allow_multicast == 0 && ETHER_IS_MULTICAST(ar_sha(ah))) {
 		bsd_log(LOG_NOTICE, "arp: %*D is multicast\n",
 		    ifp->if_addrlen, (u_char *)ar_sha(ah), ":");
+                printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 		return;
 	}
 
@@ -606,6 +614,7 @@ in_arpinput(struct mbuf *m)
 	IN_IFADDR_RLOCK();
 	if (!bridged || (ia = TAILQ_FIRST(&V_in_ifaddrhead)) == NULL) {
 		IN_IFADDR_RUNLOCK();
+                printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 		goto drop;
 	}
 	ifa_ref(&ia->ia_ifa);
@@ -615,12 +624,15 @@ match:
 		enaddr = (u_int8_t *)IF_LLADDR(ifp);
 	myaddr = ia->ia_addr.sin_addr;
 	ifa_free(&ia->ia_ifa);
-	if (!bcmp(ar_sha(ah), enaddr, ifp->if_addrlen))
+	if (!bcmp(ar_sha(ah), enaddr, ifp->if_addrlen)) {
+                printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 		goto drop;	/* it's from me, ignore it. */
+        }
 	if (!bcmp(ar_sha(ah), ifp->if_broadcastaddr, ifp->if_addrlen)) {
 		bsd_log(LOG_NOTICE,
 		    "arp: link address is broadcast for IP address %s!\n",
 		    inet_ntoa(isaddr));
+                printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 		goto drop;
 	}
 	/*
@@ -693,6 +705,7 @@ match:
 			    "i/f %d (ignored)\n", ifp->if_addrlen,
 			    (u_char *) ar_sha(ah), ":", ah->ar_hln,
 			    ifp->if_addrlen);
+                        printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 			goto drop;
 		}
 		(void)memcpy(&la->ll_addr, ar_sha(ah), ifp->if_addrlen);
@@ -736,8 +749,10 @@ match:
 			LLE_WUNLOCK(la);
 	}
 reply:
-	if (op != ARPOP_REQUEST)
+	if (op != ARPOP_REQUEST) {
+                printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 		goto drop;
+        }
 	ARPSTAT_INC(rxrequests);
 
 	if (itaddr.s_addr == myaddr.s_addr) {
@@ -761,14 +776,18 @@ reply:
 			if (lle != NULL)
 				LLE_RUNLOCK(lle);
 
-			if (!V_arp_proxyall)
+			if (!V_arp_proxyall) {
+                                printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 				goto drop;
+                        }
 
 			sin.sin_addr = itaddr;
 			/* XXX MRT use table 0 for arp reply  */
 			rt = in_rtalloc1((struct bsd_sockaddr *)&sin, 0, 0UL, 0);
-			if (!rt)
+			if (!rt) {
+                                printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 				goto drop;
+                        }
 
 			/*
 			 * Don't send proxies for nodes on the same interface
@@ -777,6 +796,7 @@ reply:
 			 */
 			if (!rt->rt_ifp || rt->rt_ifp == ifp) {
 				RTFREE_LOCKED(rt);
+                                printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 				goto drop;
 			}
 			RTFREE_LOCKED(rt);
@@ -794,14 +814,17 @@ reply:
 
 			/* XXX MRT use table 0 for arp checks */
 			rt = in_rtalloc1((struct bsd_sockaddr *)&sin, 0, 0UL, 0);
-			if (!rt)
+			if (!rt) {
+                                printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 				goto drop;
+                        }
 			if (rt->rt_ifp != ifp) {
 				bsd_log(LOG_INFO, "arp_proxy: ignoring request"
 				    " from %s via %s, expecting %s\n",
 				    inet_ntoa(isaddr), ifp->if_xname,
 				    rt->rt_ifp->if_xname);
 				RTFREE_LOCKED(rt);
+                                printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 				goto drop;
 			}
 			RTFREE_LOCKED(rt);
@@ -834,11 +857,13 @@ reply:
 	m->M_dat.MH.MH_pkthdr.rcvif = NULL;
 	sa.sa_family = AF_ARP;
 	sa.sa_len = 2;
+        printf("%s:%d arp reply\n", __PRETTY_FUNCTION__, __LINE__);
 	(*ifp->if_output)(ifp, m, &sa, NULL);
 	ARPSTAT_INC(txreplies);
 	return;
 
 drop:
+        printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 	m_freem(m);
 }
 #endif

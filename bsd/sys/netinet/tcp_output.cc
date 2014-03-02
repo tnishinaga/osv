@@ -1233,6 +1233,7 @@ timer:
 	error = ip_output(m, tp->t_inpcb->inp_options, &ro,
 	    ((so->so_options & SO_DONTROUTE) ? IP_ROUTETOIF : 0), 0,
 	    tp->t_inpcb);
+        debugf("%s ip_output m=%p error=%d\n", __PRETTY_FUNCTION__, m, error);
 
 	if (error == EMSGSIZE && ro.ro_rt != NULL)
 		mtu = ro.ro_rt->rt_rmx.rmx_mtu;

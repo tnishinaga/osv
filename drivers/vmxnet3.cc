@@ -177,6 +177,17 @@ void vmxnet3_txqueue::init()
     layout->driver_data = mmu::virt_to_phys(this);
     layout->driver_data_len = sizeof(*this);
 
+    auto &txr = cmd_ring;
+    txr.head = 0;
+    txr.next = 0;
+    txr.gen = vmxnet3::VMXNET3_INIT_GEN;
+    txr.clear_descs();
+
+    auto &txc = comp_ring;
+    txc.next = 0;
+    txc.gen = vmxnet3::VMXNET3_INIT_GEN;
+    txc.clear_descs();
+
 //    start_isr_thread();
 }
 
@@ -229,11 +240,11 @@ void vmxnet3_rxqueue::init()
             printf("%s rid=%u idx=%u pa:%p addr:%p len:%u btype:%u gen:%u\n", 
                 __PRETTY_FUNCTION__, 
                 i, idx, 
-                mmu::virt_to_phys(rxd.layout),
-                rxd.layout->addr, 
-                rxd.layout->len, 
-                rxd.layout->btype, 
-                rxd.layout->gen);
+                mmu::virt_to_phys(rxd->layout),
+                rxd->layout->addr, 
+                rxd->layout->len, 
+                rxd->layout->btype, 
+                rxd->layout->gen);
         }
 #endif
     }
@@ -244,22 +255,22 @@ void vmxnet3_rxqueue::init()
     rxc.clear_descs();
 #if 0
     for (unsigned idx = 0; idx < rxc.get_desc_num(); idx++) {
-        auto &rxcd = rxc.get_desc(idx);
+        auto rxcd = rxc.get_desc(idx);
         printf("%s rxcd idx:%u pa:%lx rxd_idx:%u eop:%u sop:%u qid:%u len:%u udp:%u tcp:%u ipv6:%u ipv4:%u type:%u gen:%u\n",
             __PRETTY_FUNCTION__,
             idx,
-            mmu::virt_to_phys(rxcd.layout),
-            rxcd.layout->rxd_idx,
-            rxcd.layout->eop,
-            rxcd.layout->sop,
-            rxcd.layout->qid,
-            rxcd.layout->len,
-            rxcd.layout->udp,
-            rxcd.layout->tcp,
-            rxcd.layout->ipv6,
-            rxcd.layout->ipv4,
-            rxcd.layout->type,
-            rxcd.layout->gen);
+            mmu::virt_to_phys(rxcd->layout),
+            rxcd->layout->rxd_idx,
+            rxcd->layout->eop,
+            rxcd->layout->sop,
+            rxcd->layout->qid,
+            rxcd->layout->len,
+            rxcd->layout->udp,
+            rxcd->layout->tcp,
+            rxcd->layout->ipv6,
+            rxcd->layout->ipv4,
+            rxcd->layout->type,
+            rxcd->layout->gen);
     }
 #endif
 //    start_isr_thread();
@@ -268,8 +279,8 @@ void vmxnet3_rxqueue::init()
 void vmxnet3_rxqueue::discard(int rid, int idx)
 {
     auto &rxr = cmd_rings[rid];
-    auto &rxd = rxr.get_desc(idx);
-    rxd.layout->gen = rxr.gen;
+    auto rxd = rxr.get_desc(idx);
+    rxd->layout->gen = rxr.gen;
     rxr.increment_fill();
 }
 
@@ -277,8 +288,8 @@ void vmxnet3_rxqueue::discard_chain(int rid)
 {
     while (1) {
         auto &rxc = comp_ring;
-        auto &rxcd = rxc.get_desc(rxc.next);
-        if (rxcd.layout->gen != rxc.gen)
+        auto rxcd = rxc.get_desc(rxc.next);
+        if (rxcd->layout->gen != rxc.gen)
             break;
         rmb();
 
@@ -287,8 +298,8 @@ void vmxnet3_rxqueue::discard_chain(int rid)
             rxc.gen ^= 1;
         }
 
-        auto idx = rxcd.layout->rxd_idx;
-        auto eof = rxcd.layout->eop;
+        auto idx = rxcd->layout->rxd_idx;
+        auto eof = rxcd->layout->eop;
         discard(rid, idx);
         if (eof)
             break;
@@ -299,7 +310,7 @@ int vmxnet3_rxqueue::newbuf(int rid)
 {
     auto &rxr = cmd_rings[rid];
     auto idx = rxr.fill;
-    auto &rxd = rxr.get_desc(idx);
+    auto rxd = rxr.get_desc(idx);
     int flags, clsize, btype;
     if (rid == 0 && (idx % 1) == 0) {
         flags = M_PKTHDR;
@@ -321,19 +332,19 @@ int vmxnet3_rxqueue::newbuf(int rid)
 
     buf[rid][idx] = m;
 
-    rxd.layout->addr = mmu::virt_to_phys(m->m_hdr.mh_data);
-    rxd.layout->len = m->m_hdr.mh_len;
-    rxd.layout->btype = btype;
-    rxd.layout->gen = rxr.gen;
+    rxd->layout->addr = mmu::virt_to_phys(m->m_hdr.mh_data);
+    rxd->layout->len = m->m_hdr.mh_len;
+    rxd->layout->btype = btype;
+    rxd->layout->gen = rxr.gen;
 /*
     printf("%s rid=%u idx=%u pa:%p addr:%p len:%u btype:%u gen:%u\n", 
         __PRETTY_FUNCTION__, 
         rid, idx, 
-        mmu::virt_to_phys(rxd.layout),
-        rxd.layout->addr, 
-        rxd.layout->len, 
-        rxd.layout->btype, 
-        rxd.layout->gen);
+        mmu::virt_to_phys(rxd->layout),
+        rxd->layout->addr, 
+        rxd->layout->len, 
+        rxd->layout->btype, 
+        rxd->layout->gen);
 */
 
     rxr.increment_fill();
@@ -653,52 +664,64 @@ void vmxnet3::receive_work()
 void vmxnet3::txq_encap(vmxnet3_txqueue &txq, struct mbuf *m_head)
 {
     auto &txr = txq.cmd_ring;
-    auto &txd = txr.get_desc(txr.head);
-    auto &sop = txr.get_desc(txr.head);
+    auto txd = txr.get_desc(txr.head);
+    auto sop = txr.get_desc(txr.head);
     auto gen = txr.gen ^ 1; // Owned by cpu (yet)
+    auto tx = 0;
+    auto sop_idx = txr.head;
 
     for (auto m = m_head; m != NULL; m = m->m_hdr.mh_next) {
-        printf("%s m=%p\n", __PRETTY_FUNCTION__, m);
         txq.buf[txr.head] = m;
         txd = txr.get_desc(txr.head);
-        txd.layout->addr = mmu::virt_to_phys(m->m_hdr.mh_data);
-        txd.layout->len = m->m_hdr.mh_len;
-        txd.layout->gen = gen;
-        txd.layout->dtype = 0;
-        txd.layout->offload_mode = VMXNET3_OM_NONE;
-        txd.layout->offload_pos = 0;
-        txd.layout->hlen = 0;
-        txd.layout->eop = 0;
-        txd.layout->compreq = 0;
-        txd.layout->vtag_mode = 0;
-        txd.layout->vtag = 0;
+        txd->layout->addr = mmu::virt_to_phys(m->m_hdr.mh_data);
+        txd->layout->len = m->m_hdr.mh_len;
+        txd->layout->gen = gen;
+        txd->layout->dtype = 0;
+        txd->layout->offload_mode = VMXNET3_OM_NONE;
+        txd->layout->offload_pos = 0;
+        txd->layout->hlen = 0;
+        txd->layout->eop = 0;
+        txd->layout->compreq = 0;
+        txd->layout->vtag_mode = 0;
+        txd->layout->vtag = 0;
+        printf("%s txd[%d] gen=%d m=%p\n", __PRETTY_FUNCTION__, txr.head, gen, m);
 
         if (++txr.head == txr.get_desc_num()) {
             txr.head = 0;
             txr.gen ^= 1;
+//            printf("%s txr.gen=%d\n", __PRETTY_FUNCTION__, txr.gen);
         }
         gen = txr.gen;
+        tx++;
     }
-    txd.layout->eop = 1;
-    txd.layout->compreq = 1;
+    printf("%s txr.gen=%d\n", __PRETTY_FUNCTION__, txr.gen);
+    txd->layout->eop = 1;
+    txd->layout->compreq = 1;
 
     // Finally, change the ownership.
     wmb();
-    sop.layout->gen ^= 1;
+    sop->layout->gen ^= 1;
+    printf("%s txd[%d] sop gen=%d m=%p\n", __PRETTY_FUNCTION__, sop_idx, sop->layout->gen, txq.buf[sop_idx]);
 
     if (++txq.layout->npending >= txq.layout->intr_threshold) {
         txq.layout->npending = 0;
         _bar0->writel(VMXNET3_BAR0_TXH, txr.head);
     }
-    _bar0->writel(VMXNET3_BAR0_TXH, _txq[0].cmd_ring.head);
+    if (tx > 0) {
+        if (txq.layout->npending > 0) {
+            txq.layout->npending = 0;
+            _bar0->writel(VMXNET3_BAR0_TXH, _txq[0].cmd_ring.head);
+        }
+        
+    }
 }
 
 void vmxnet3::txq_gc(vmxnet3_txqueue &txq)
 {
     auto &txc = txq.comp_ring;
     while(1) {
-        auto &txcd = txc.get_desc(txc.next);
-        if (txcd.layout->gen != txc.gen)
+        auto txcd = txc.get_desc(txc.next);
+        if (txcd->layout->gen != txc.gen)
             break;
         rmb();
         if (++txc.next == txc.get_desc_num()) {
@@ -716,16 +739,16 @@ void vmxnet3::txq_gc(vmxnet3_txqueue &txq)
         }
 
         txc.next = 
-            (txcd.layout->eop_idx + 1 ) % txc.get_desc_num();
+            (txcd->layout->eop_idx + 1 ) % txc.get_desc_num();
     }
 }
 
 bool vmxnet3::txq_gc_avail(vmxnet3_txqueue &txq)
 {
     auto &txc = txq.comp_ring;
-    auto &txcd = txc.get_desc(txc.next);
+    auto txcd = txc.get_desc(txc.next);
 //    printf("%s avail?=%d\n", __PRETTY_FUNCTION__, (txcd.layout->gen == txc.gen));
-    return (txcd.layout->gen == txc.gen);
+    return (txcd->layout->gen == txc.gen);
 }
 
 void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
@@ -737,10 +760,10 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
 //        rxc.next, rxc.gen);
 
     while(1) {
-        auto &rxcd = rxc.get_desc(rxc.next);
-        assert(rxcd.layout->qid <= 2);
+        auto rxcd = rxc.get_desc(rxc.next);
+        assert(rxcd->layout->qid <= 2);
 
-        if (rxcd.layout->gen != rxc.gen)
+        if (rxcd->layout->gen != rxc.gen)
             break;
         rmb();
 
@@ -749,36 +772,36 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
             rxc.gen ^= 1;
         }
 
-        auto rid = rxcd.layout->qid;
-        auto idx = rxcd.layout->rxd_idx;
-        auto length = rxcd.layout->len;
+        auto rid = rxcd->layout->qid;
+        auto idx = rxcd->layout->rxd_idx;
+        auto length = rxcd->layout->len;
         auto &rxr = rxq.cmd_rings[rid];
-        auto &rxd = rxr.get_desc(idx);
+        auto rxd = rxr.get_desc(idx);
         auto m = rxq.buf[rid][idx];
 
 #if 0
         printf("%s rxcd rxd_idx:%u eop:%u sop:%u qid:%u len:%u udp:%u tcp:%u ipv6:%u ipv4:%u type:%u gen:%u\n",
             __PRETTY_FUNCTION__,
-            rxcd.layout->rxd_idx,
-            rxcd.layout->eop,
-            rxcd.layout->sop,
-            rxcd.layout->qid,
-            rxcd.layout->len,
-            rxcd.layout->udp,
-            rxcd.layout->tcp,
-            rxcd.layout->ipv6,
-            rxcd.layout->ipv4,
-            rxcd.layout->type,
-            rxcd.layout->gen);
+            rxcd->layout->rxd_idx,
+            rxcd->layout->eop,
+            rxcd->layout->sop,
+            rxcd->layout->qid,
+            rxcd->layout->len,
+            rxcd->layout->udp,
+            rxcd->layout->tcp,
+            rxcd->layout->ipv6,
+            rxcd->layout->ipv4,
+            rxcd->layout->type,
+            rxcd->layout->gen);
 
         printf("%s rid=%u idx=%u\n", __PRETTY_FUNCTION__, rid, idx);
         printf("%s rxd addr:%lx len:%u btype:%u dtype:%u gen:%u\n",
             __PRETTY_FUNCTION__,
-            rxd.layout->addr,
-            rxd.layout->len,
-            rxd.layout->btype,
-            rxd.layout->dtype,
-            rxd.layout->gen);
+            rxd->layout->addr,
+            rxd->layout->len,
+            rxd->layout->btype,
+            rxd->layout->dtype,
+            rxd->layout->gen);
         printf("%s m data=%p\n",
             __PRETTY_FUNCTION__,
             mmu::virt_to_phys(m->m_hdr.mh_data));
@@ -787,13 +810,13 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
 
         if (rxr.fill != idx) {
             while(rxr.fill != idx) {
-                rxr.get_desc(rxr.fill).layout->gen = rxr.gen;
+                rxr.get_desc(rxr.fill)->layout->gen = rxr.gen;
                 rxr.increment_fill();
             }
         }
 
-        if (rxcd.layout->sop) {
-            assert(rxd.layout->btype == VMXNET3_BTYPE_HEAD);
+        if (rxcd->layout->sop) {
+            assert(rxd->layout->btype == VMXNET3_BTYPE_HEAD);
             assert((idx % 1) == 0);
             assert(m_head == NULL);
 
@@ -804,7 +827,7 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
 
             if (rxq.newbuf(rid) != 0) {
                 rxq.discard(rid, idx);
-                if (!rxcd.layout->eop)
+                if (!rxcd->layout->eop)
                     rxq.discard_chain(rid);
                 goto next;
             }
@@ -815,12 +838,12 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
             m->m_hdr.mh_len = length;
             m_head = m_tail = m;
         } else {
-            assert(rxd.layout->btype == VMXNET3_BTYPE_BODY);
+            assert(rxd->layout->btype == VMXNET3_BTYPE_BODY);
             assert(m_head != NULL);
 
             if (rxq.newbuf(rid) != 0) {
                 rxq.discard(rid, idx);
-                if (!rxcd.layout->eop)
+                if (!rxcd->layout->eop)
                     rxq.discard_chain(rid);
                 m_freem(m_head);
                 m_head = m_tail = NULL;
@@ -833,7 +856,7 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
             m_tail = m;
         }
 
-        if (rxcd.layout->eop) {
+        if (rxcd->layout->eop) {
 //            printf("%s if_input m=%p\n",
 //                __PRETTY_FUNCTION__, m);
             (*_ifn->if_input)(_ifn, m);
@@ -854,11 +877,11 @@ next:
 bool vmxnet3::rxq_avail(vmxnet3_rxqueue &rxq)
 {
     auto &rxc = rxq.comp_ring;
-    auto &rxcd = rxc.get_desc(rxc.next);
-    assert(rxcd.layout->qid <= 2);
+    auto rxcd = rxc.get_desc(rxc.next);
+    assert(rxcd->layout->qid <= 2);
 
-//    printf("%s avail?=%d\n", __PRETTY_FUNCTION__, (rxcd.layout->gen == rxc.gen));
-    return (rxcd.layout->gen == rxc.gen);
+//    printf("%s avail?=%d\n", __PRETTY_FUNCTION__, (rxcd->layout->gen == rxc.gen));
+    return (rxcd->layout->gen == rxc.gen);
 }
 
 void vmxnet3::get_mac_address(u_int8_t *macaddr)

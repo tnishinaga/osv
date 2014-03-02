@@ -212,6 +212,7 @@ again:
 		    (ia = ifatoia(ifa_ifwithdstaddr(sintosa(dst)))) == NULL) {
 			IPSTAT_INC(ips_noroute);
 			error = ENETUNREACH;
+                        printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 			goto bad;
 		}
 		ip->ip_dst.s_addr = INADDR_BROADCAST;
@@ -224,6 +225,7 @@ again:
 		    (ia = ifatoia(ifa_ifwithnet(sintosa(dst), 0))) == NULL) {
 			IPSTAT_INC(ips_noroute);
 			error = ENETUNREACH;
+                        printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 			goto bad;
 		}
 		ifp = ia->ia_ifp;
@@ -269,6 +271,7 @@ again:
 #endif
 			IPSTAT_INC(ips_noroute);
 			error = EHOSTUNREACH;
+                        printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 			goto bad;
 		}
 		ia = ifatoia(rte->rt_ifa);
@@ -330,6 +333,7 @@ again:
 			if ((ifp->if_flags & IFF_MULTICAST) == 0) {
 				IPSTAT_INC(ips_noroute);
 				error = ENETUNREACH;
+                                printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 				goto bad;
 			}
 		}
@@ -425,6 +429,7 @@ again:
 		error = ENOBUFS;
 		IPSTAT_INC(ips_odropped);
 		ifp->if_snd.ifq_drops += n;
+                printf("%s:%d ifq_len=%d + n=%d = %d ifq_maxlen=%d\n", __PRETTY_FUNCTION__, __LINE__, ifp->if_snd.ifq_len, n, ifp->if_snd.ifq_len + n, ifp->if_snd.ifq_maxlen);
 		goto bad;
 	}
 
@@ -436,15 +441,18 @@ again:
 	if (isbroadcast) {
 		if ((ifp->if_flags & IFF_BROADCAST) == 0) {
 			error = EADDRNOTAVAIL;
+                        printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 			goto bad;
 		}
 		if ((flags & IP_ALLOWBROADCAST) == 0) {
 			error = EACCES;
+                        printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 			goto bad;
 		}
 		/* don't allow broadcast messages to be fragmented */
 		if (ip->ip_len > mtu) {
 			error = EMSGSIZE;
+                        printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 			goto bad;
 		}
 		m->m_hdr.mh_flags |= M_BCAST;
@@ -456,6 +464,7 @@ sendit:
 #ifdef IPSEC
 	switch(ip_ipsec_output(&m, inp, &flags, &error)) {
 	case 1:
+                printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 		goto bad;
 	case -1:
 		goto done;
@@ -469,6 +478,7 @@ sendit:
 	if (no_route_but_check_spd) {
 		IPSTAT_INC(ips_noroute);
 		error = EHOSTUNREACH;
+                printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 		goto bad;
 	}
 	/* Update variables that are affected by ipsec4_output(). */
@@ -555,6 +565,7 @@ passout:
 		if ((ifp->if_flags & IFF_LOOPBACK) == 0) {
 			IPSTAT_INC(ips_badaddr);
 			error = EADDRNOTAVAIL;
+                        printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 			goto bad;
 		}
 	}
@@ -618,6 +629,7 @@ passout:
 	if ((ip->ip_off & IP_DF) || (m->M_dat.MH.MH_pkthdr.csum_flags & CSUM_TSO)) {
 		error = EMSGSIZE;
 		IPSTAT_INC(ips_cantfrag);
+                printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 		goto bad;
 	}
 
@@ -626,8 +638,10 @@ passout:
 	 * on return, m will point to a list of packets to be sent.
 	 */
 	error = ip_fragment(ip, &m, mtu, ifp->if_hwassist, sw_csum);
-	if (error)
+	if (error) {
+                printf("%s:%d\n", __PRETTY_FUNCTION__, __LINE__);
 		goto bad;
+        }
 	for (; m; m = m0) {
 		m0 = m->m_hdr.mh_nextpkt;
 		m->m_hdr.mh_nextpkt = 0;
@@ -645,8 +659,10 @@ passout:
 
 			error = (*ifp->if_output)(ifp, m,
 			    (struct bsd_sockaddr *)dst, ro);
-		} else
+		} else {
+                        printf("%s error=%d m=%p\n", __PRETTY_FUNCTION__, error, m);
 			m_freem(m);
+                }
 	}
 
 	if (error == 0)
@@ -659,6 +675,7 @@ done:
 		ifa_free(&ia->ia_ifa);
 	return (error);
 bad:
+        printf("%s bad m=%p\n", __PRETTY_FUNCTION__, m);
 	m_freem(m);
 	goto done;
 }

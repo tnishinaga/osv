@@ -388,6 +388,11 @@ ip_preprocess_packet(struct mbuf *m, uint8_t& protocol, int& hlen)
 		/* Set up some basics that will be used later. */
 		ip = mtod(m, struct ip *);
 		hlen = ip->ip_hl << 2;
+                #if 0
+                debugf("%s src=%s", __func__, inet_ntoa(ip->ip_src));
+                debugf(" dst=%s m=%p\n", inet_ntoa(ip->ip_dst), m);
+                #endif
+
 		goto ours;
 	}
 
@@ -402,7 +407,10 @@ ip_preprocess_packet(struct mbuf *m, uint8_t& protocol, int& hlen)
 		return m;
 	}
 	ip = mtod(m, struct ip *);
-
+        #if 0
+        debugf("%s src=%s", __func__, inet_ntoa(ip->ip_src));
+        debugf(" dst=%s m=%p\n", inet_ntoa(ip->ip_dst), m);
+        #endif
 	if (ip->ip_v != IPVERSION) {
 		IPSTAT_INC(ips_badvers);
 		goto bad;
@@ -516,8 +524,10 @@ tooshort:
 	dchg = (odst.s_addr != ip->ip_dst.s_addr);
 	ifp = m->M_dat.MH.MH_pkthdr.rcvif;
 
-        printf("%s src=%s dst=%s\n",
-            __func__, inet_ntoa(ip->ip_src), inet_ntoa(ip->ip_dst));
+#if 0
+        debugf("%s src=%s", __func__, inet_ntoa(ip->ip_src));
+        debugf(" dst=%s m=%p\n", inet_ntoa(ip->ip_dst), m);
+#endif
 
 	if (m->m_hdr.mh_flags & M_FASTFWD_OURS) {
 		m->m_hdr.mh_flags &= ~M_FASTFWD_OURS;
@@ -707,6 +717,9 @@ passin:
 	return nullptr;
 
 ours:
+#if 0
+        debugf("%s ours m=%p\n", __PRETTY_FUNCTION__, m);
+#endif
 #ifdef IPSTEALTH
 	/*
 	 * IPSTEALTH: Process non-routing options only
@@ -763,6 +776,7 @@ ours:
 
 	return m;
 bad:
+        debugf("%s bad m=%p\n", __PRETTY_FUNCTION__, m);
 	m_freem(m);
 	return nullptr;
 }

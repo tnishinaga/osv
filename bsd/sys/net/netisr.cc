@@ -762,11 +762,6 @@ netisr_dispatch_src(u_int proto, uintptr_t source, struct mbuf *m)
 		npwp->nw_dispatched++;
 		npwp->nw_handled++;
 		netisr_proto[proto].np_handler(m);
-                printf("%s proto=%x np_handler=%p m=%p\n",
-                    __PRETTY_FUNCTION__,
-                    proto,
-                    netisr_proto[proto].np_handler,
-                    m);
 		error = 0;
 		goto out_unlock;
 	}

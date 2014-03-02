@@ -600,6 +600,7 @@ tcp_input(struct mbuf *m, int off0)
 		} else
 			th->th_sum = in6_cksum(m, IPPROTO_TCP, off0, tlen);
 		if (th->th_sum) {
+                        debugf("%s badsum m=%p\n", __PRETTY_FUNCTION__, m);
 			TCPSTAT_INC(tcps_rcvbadsum);
 			goto drop;
 		}
@@ -642,6 +643,10 @@ tcp_input(struct mbuf *m, int off0)
 		ipov = (struct ipovly *)ip;
 		th = (struct tcphdr *)((caddr_t)ip + off0);
 		tlen = ip->ip_len;
+#if 0
+                debugf("%s th_sport:%u th_dport:%u len:%u\n",
+                    __func__, ntohs(th->th_sport), ntohs(th->th_dport), tlen);
+#endif
 
 		if (m->M_dat.MH.MH_pkthdr.csum_flags & CSUM_DATA_VALID) {
 			if (m->M_dat.MH.MH_pkthdr.csum_flags & CSUM_PSEUDO_HDR)
@@ -668,6 +673,7 @@ tcp_input(struct mbuf *m, int off0)
 			th->th_sum = in_cksum(m, len);
 		}
 		if (th->th_sum) {
+                        debugf("%s badsum m=%p\n", __PRETTY_FUNCTION__, m);
 			TCPSTAT_INC(tcps_rcvbadsum);
 			goto drop;
 		}
@@ -714,6 +720,8 @@ tcp_input(struct mbuf *m, int off0)
 				if ((m = m_pullup(m, sizeof (struct ip) + off))
 				    == NULL) {
 					TCPSTAT_INC(tcps_rcvshort);
+                                        debugf("%s short m=%p\n",
+                                            __PRETTY_FUNCTION__, m);
 					return;
 				}
 				ip = mtod(m, struct ip *);
@@ -952,6 +960,8 @@ relocked:
 		if (tcp_twcheck(inp, &to, th, m, tlen))
 			goto findpcb;
 		INP_INFO_WUNLOCK(&V_tcbinfo);
+                debugf("%s timewait m=%p\n",
+                    __PRETTY_FUNCTION__, m);
 		return;
 	}
 	/*
@@ -1054,6 +1064,7 @@ relocked:
 		 * socket appended to the listen queue in SYN_RECEIVED state.
 		 */
 		if ((thflags & (TH_RST|TH_ACK|TH_SYN)) == TH_ACK) {
+                        debugf("%s ack m=%p\n", __PRETTY_FUNCTION__, m);
 			/*
 			 * Parse the TCP options here because
 			 * syncookies need access to the reflected
@@ -1151,6 +1162,7 @@ relocked:
 		 * causes.
 		 */
 		if (thflags & TH_RST) {
+                        debugf("%s rst m=%p\n", __PRETTY_FUNCTION__, m);
 			syncache_chkrst(&inc, th);
 			goto dropunlock;
 		}
@@ -1158,6 +1170,7 @@ relocked:
 		 * We can't do anything without SYN.
 		 */
 		if ((thflags & TH_SYN) == 0) {
+                        debugf("%s syn m=%p\n", __PRETTY_FUNCTION__, m);
 			if ((s = tcp_log_addrs(&inc, th, NULL, NULL)))
 				bsd_log(LOG_DEBUG, "%s; %s: Listen socket: "
 				    "SYN is missing, segment ignored\n",
@@ -1169,6 +1182,7 @@ relocked:
 		 * (SYN|ACK) is bogus on a listen socket.
 		 */
 		if (thflags & TH_ACK) {
+                        debugf("%s synack m=%p\n", __PRETTY_FUNCTION__, m);
 			if ((s = tcp_log_addrs(&inc, th, NULL, NULL)))
 				bsd_log(LOG_DEBUG, "%s; %s: Listen socket: "
 				    "SYN|ACK invalid, segment rejected\n",
@@ -1190,6 +1204,7 @@ relocked:
 		 * and was used by RFC1644.
 		 */
 		if ((thflags & TH_FIN) && V_drop_synfin) {
+                        debugf("%s fin m=%p\n", __PRETTY_FUNCTION__, m);
 			if ((s = tcp_log_addrs(&inc, th, NULL, NULL)))
 				bsd_log(LOG_DEBUG, "%s; %s: Listen socket: "
 				    "SYN|FIN segment ignored (based on "
@@ -1270,6 +1285,7 @@ relocked:
 		 *	in_broadcast() to find them.
 		 */
 		if (m->m_hdr.mh_flags & (M_BCAST|M_MCAST)) {
+                        debugf("%s bcastmcast m=%p\n", __PRETTY_FUNCTION__, m);
 			if ((s = tcp_log_addrs(&inc, th, NULL, NULL)))
 			    bsd_log(LOG_DEBUG, "%s; %s: Listen socket: "
 				"Connection attempt from broad- or multicast "
@@ -1362,7 +1378,7 @@ relocked:
 
 	/*
 	 * Segment belongs to a connection in SYN_SENT, ESTABLISHED or later
-	 * state.  tcp_do_segment() always consumes the mbuf chain and unlocks pcbinfo.
+	 * state.  tcp_do_segment() always consumes the mbuf chain and unlocks pcbinfo.)
 	 */
 	tcp_do_segment(m, th, so, tp, drop_hdrlen, tlen, iptos, ti_locked);
 	INP_INFO_UNLOCK_ASSERT(&V_tcbinfo);
@@ -1370,6 +1386,7 @@ relocked:
 	return;
 
 dropwithreset:
+        debugf("%s dropwithreset m=%p\n", __PRETTY_FUNCTION__, m);
 	if (ti_locked == TI_WLOCKED) {
 		INP_INFO_WUNLOCK(&V_tcbinfo);
 		ti_locked = TI_UNLOCKED;
@@ -1391,6 +1408,7 @@ dropwithreset:
 	goto drop;
 
 dropunlock:
+        debugf("%s dropunlock m=%p\n", __PRETTY_FUNCTION__, m);
 	if (ti_locked == TI_WLOCKED) {
 		INP_INFO_WUNLOCK(&V_tcbinfo);
 		ti_locked = TI_UNLOCKED;
@@ -1407,6 +1425,7 @@ dropunlock:
 		INP_UNLOCK(inp);
 
 drop:
+        debugf("%s drop m=%p\n", __PRETTY_FUNCTION__, m);
 	INP_INFO_UNLOCK_ASSERT(&V_tcbinfo);
 	if (s != NULL)
 		free(s);
@@ -2959,6 +2978,7 @@ check_delack:
 	return;
 
 dropafterack:
+        debugf("%s dropafterack m=%p\n", __PRETTY_FUNCTION__, m);
 	/*
 	 * Generate an ACK dropping incoming segment if it occupies
 	 * sequence space, where the ACK reflects our state.
@@ -2995,6 +3015,7 @@ dropafterack:
 	return;
 
 dropwithreset:
+        debugf("%s dropwithreset m=%p\n", __PRETTY_FUNCTION__, m);
 	if (ti_locked == TI_WLOCKED)
 		INP_INFO_WUNLOCK(&V_tcbinfo);
 	ti_locked = TI_UNLOCKED;
@@ -3008,6 +3029,7 @@ dropwithreset:
 	return;
 
 drop:
+        debugf("%s drop m=%p\n", __PRETTY_FUNCTION__, m);
 	if (ti_locked == TI_WLOCKED) {
 		INP_INFO_WUNLOCK(&V_tcbinfo);
 		ti_locked = TI_UNLOCKED;

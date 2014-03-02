@@ -34,7 +34,7 @@ namespace vmware {
             int gen;
             mmu::phys get_desc_pa() const { return _desc_mem.get_pa(); }
             static u32 get_desc_num() { return NDesc; }
-            DescT& get_desc(int i) { return _desc[i]; }
+            DescT* get_desc(int i) { return &_desc[i]; }
             void clear_desc(int i) { _desc[i].clear(); }
             void clear_descs() { for (int i = 0; i < NDesc; i++) clear_desc(i); }
             void increment_fill();
