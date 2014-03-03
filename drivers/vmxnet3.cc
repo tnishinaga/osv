@@ -112,7 +112,7 @@ static int if_transmit(struct ifnet* ifp, struct mbuf* m_head)
 {
     vmxnet3* vmx = (vmxnet3*)ifp->if_softc;
 
-    printf("%s m=%p\n", __PRETTY_FUNCTION__, m_head);
+//    printf("%s m=%p\n", __PRETTY_FUNCTION__, m_head);
 
     vmx->transmit(m_head);
 
@@ -441,7 +441,7 @@ void vmxnet3::allocate_interrupts()
 {
     _msi.easy_register({
         { 0, [&] { disable_interrupt(0); },  /* &_gc_task */ nullptr },
-        { 1, [&] { disable_interrupt(1); }, &_receive_task }
+        { 1, [&] { /* disable_interrupt(1); */ }, &_receive_task }
     });
     _txq[0].layout->intr_idx = 0;
     _rxq[0].layout->intr_idx = 1;
@@ -603,7 +603,7 @@ u32 vmxnet3::read_cmd(u32 cmd)
 void vmxnet3::transmit(struct mbuf *m)
 {
     WITH_LOCK(_txq_lock) {
-        printf("%s m=%p\n", __PRETTY_FUNCTION__, m);
+//        printf("%s m=%p\n", __PRETTY_FUNCTION__, m);
         txq_encap(_txq[0], m);
         if (txq_gc_avail(_txq[0]))
             txq_gc(_txq[0]);
@@ -638,24 +638,13 @@ void vmxnet3::receive_work()
 {
     while(1) {
         enable_interrupt(1);
-#if 0
-        arch::irq_flag flag;
-        arch::irq_enable();
-        enable_interrupt(1);
-        auto preemptable = sched::preemptable();
-        if (!preemptable)
-            sched::preempt_enable();
-#endif
+        printf("%s\n", __PRETTY_FUNCTION__);
         sched::thread::wait_until([&] {
             WITH_LOCK(_rxq_lock)
                 return rxq_avail(_rxq[0]);
         });
-//        sched::thread::sleep(std::chrono::milliseconds(500));
-#if 0
-        if (!preemptable)
-            sched::preempt_disable();
-        flag.restore();
-#endif
+        disable_interrupt(1);
+        printf("%s\n", __PRETTY_FUNCTION__);
         WITH_LOCK(_rxq_lock)
             rxq_eof(_rxq[0]);
     }
@@ -668,7 +657,7 @@ void vmxnet3::txq_encap(vmxnet3_txqueue &txq, struct mbuf *m_head)
     auto sop = txr.get_desc(txr.head);
     auto gen = txr.gen ^ 1; // Owned by cpu (yet)
     auto tx = 0;
-    auto sop_idx = txr.head;
+//    auto sop_idx = txr.head;
 
     for (auto m = m_head; m != NULL; m = m->m_hdr.mh_next) {
         txq.buf[txr.head] = m;
@@ -684,7 +673,7 @@ void vmxnet3::txq_encap(vmxnet3_txqueue &txq, struct mbuf *m_head)
         txd->layout->compreq = 0;
         txd->layout->vtag_mode = 0;
         txd->layout->vtag = 0;
-        printf("%s txd[%d] gen=%d m=%p\n", __PRETTY_FUNCTION__, txr.head, gen, m);
+//        printf("%s txd[%d] gen=%d m=%p\n", __PRETTY_FUNCTION__, txr.head, gen, m);
 
         if (++txr.head == txr.get_desc_num()) {
             txr.head = 0;
@@ -694,14 +683,14 @@ void vmxnet3::txq_encap(vmxnet3_txqueue &txq, struct mbuf *m_head)
         gen = txr.gen;
         tx++;
     }
-    printf("%s txr.gen=%d\n", __PRETTY_FUNCTION__, txr.gen);
+//    printf("%s txr.gen=%d\n", __PRETTY_FUNCTION__, txr.gen);
     txd->layout->eop = 1;
     txd->layout->compreq = 1;
 
     // Finally, change the ownership.
     wmb();
     sop->layout->gen ^= 1;
-    printf("%s txd[%d] sop gen=%d m=%p\n", __PRETTY_FUNCTION__, sop_idx, sop->layout->gen, txq.buf[sop_idx]);
+//    printf("%s txd[%d] sop gen=%d m=%p\n", __PRETTY_FUNCTION__, sop_idx, sop->layout->gen, txq.buf[sop_idx]);
 
     if (++txq.layout->npending >= txq.layout->intr_threshold) {
         txq.layout->npending = 0;
@@ -756,8 +745,8 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
     auto &rxc = rxq.comp_ring;
     struct mbuf *m_head = NULL, *m_tail = NULL;
 
-//    printf("%s rxc next:%d gen:%d\n", __PRETTY_FUNCTION__,
-//        rxc.next, rxc.gen);
+    printf("%s rxc next:%d gen:%d\n", __PRETTY_FUNCTION__,
+        rxc.next, rxc.gen);
 
     while(1) {
         auto rxcd = rxc.get_desc(rxc.next);
@@ -779,7 +768,6 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
         auto rxd = rxr.get_desc(idx);
         auto m = rxq.buf[rid][idx];
 
-#if 0
         printf("%s rxcd rxd_idx:%u eop:%u sop:%u qid:%u len:%u udp:%u tcp:%u ipv6:%u ipv4:%u type:%u gen:%u\n",
             __PRETTY_FUNCTION__,
             rxcd->layout->rxd_idx,
@@ -805,7 +793,6 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
         printf("%s m data=%p\n",
             __PRETTY_FUNCTION__,
             mmu::virt_to_phys(m->m_hdr.mh_data));
-#endif
         assert(m != NULL);
 
         if (rxr.fill != idx) {
@@ -857,8 +844,8 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
         }
 
         if (rxcd->layout->eop) {
-//            printf("%s if_input m=%p\n",
-//                __PRETTY_FUNCTION__, m);
+            printf("%s if_input m=%p\n",
+                __PRETTY_FUNCTION__, m);
             (*_ifn->if_input)(_ifn, m);
             m_head = m_tail = NULL;
         }

@@ -268,6 +268,7 @@ ether_output(struct ifnet *ifp, struct mbuf *m,
 		(void)memcpy(eh->ether_shost, IF_LLADDR(ifp),
 			sizeof(eh->ether_shost));
 
+#if 0
         debugf("%s dhost=%x:%x:%x:%x:%x:%x shost=%x:%x:%x:%x:%x:%x etype=%x\n",
             __func__,
             eh->ether_dhost[0],
@@ -283,6 +284,7 @@ ether_output(struct ifnet *ifp, struct mbuf *m,
             eh->ether_shost[4],
             eh->ether_shost[5],
             type);
+#endif
 
 	/*
 	 * If a simplex interface, and the packet is being sent to our
