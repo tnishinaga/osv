@@ -466,7 +466,7 @@ void vmxnet3::fill_driver_shared()
     _drv_shared.set_max_sg_len(VMXNET3_MAX_RX_SEGS);
     _drv_shared.set_mcast_table(_mcast_list.get_pa(),
                                 _mcast_list.get_size());
-    _drv_shared.set_intr_config(2, 0);
+    _drv_shared.set_intr_config(2, IMM_AUTO);
     _drv_shared.layout->upt_features = UPT1_F_CSUM | UPT1_F_LRO;
     _drv_shared.layout->mtu = 1500;
     _drv_shared.layout->ntxqueue = 1;

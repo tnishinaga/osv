@@ -176,7 +176,12 @@ private:
         UPT1_F_CSUM = 0x0001,
         UPT1_F_RSS = 0x0002,
         UPT1_F_VLAN = 0x0004,
-        UPT1_F_LRO = 0x0008
+        UPT1_F_LRO = 0x0008,
+
+        //Interrupt mask mode
+        IMM_AUTO = 0,
+        IMM_ACTIVE = 1,
+        IMM_LAZY = 2
     };
     static inline constexpr u32 VMXNET3_BAR0_IMASK(int irq)
     {
