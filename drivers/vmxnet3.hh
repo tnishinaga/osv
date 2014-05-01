@@ -135,6 +135,11 @@ private:
         VMXNET3_CMD_SET_RXMODE = 0xCAFE0003, // Set interface flags
         VMXNET3_CMD_SET_FILTER = 0xCAFE0004, // Set address filter
         VMXNET3_CMD_VLAN_FILTER = 0xCAFE0005, // Set VLAN filter
+        VMXNET3_CMD_SET_RSSIDT = 0xCAFE0006,
+        VMXNET3_CMD_SET_IML = 0xCAFE0007,
+        VMXNET3_CMD_SET_PMCFG = 0xCAFE0008,
+        VMXNET3_CMD_SET_FEATURE = 0xCAFE0009,
+        VMXNET3_CMD_LOAD_PLUGIN = 0xCAFE000A,
         VMXNET3_CMD_GET_STATUS = 0xF00D0000,  // Get queue errors
         VMXNET3_CMD_GET_STATS = 0xF00D0001, // Get queue statistics
         VMXNET3_CMD_GET_LINK = 0xF00D0002, // Get link status
