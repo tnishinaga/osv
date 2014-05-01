@@ -69,6 +69,8 @@ public:
     void discard(int rid, int idx);
     void discard_chain(int rid);
     int newbuf(int rid);
+    static void free_buffer_and_refcnt(void* buffer, void* refcnt);
+    static void do_free_buffer(void* buffer);
 
     typedef vmxnet3_ring<vmxnet3_rx_desc, VMXNET3_MAX_RX_NDESC> cmdRingT;
     typedef vmxnet3_ring<vmxnet3_rx_compdesc, VMXNET3_MAX_RX_NCOMPDESC> compRingT;

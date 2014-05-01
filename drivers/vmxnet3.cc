@@ -277,32 +277,51 @@ void vmxnet3_rxqueue::discard_chain(int rid)
     }
 }
 
+// hook for EXT_EXTREF mbuf cleanup
+void vmxnet3_rxqueue::free_buffer_and_refcnt(void* buffer, void* refcnt)
+{
+    do_free_buffer(buffer);
+    delete static_cast<unsigned*>(refcnt);
+}
+
+void vmxnet3_rxqueue::do_free_buffer(void* buffer)
+{
+    buffer = align_down(buffer, page_size);
+    memory::free_page(buffer);
+}
+
 int vmxnet3_rxqueue::newbuf(int rid)
 {
     auto &rxr = cmd_rings[rid];
     auto idx = rxr.fill;
     auto rxd = rxr.get_desc(idx);
+    struct mbuf *m;
     int flags, clsize, btype;
 
     if (rid == 0 && (idx % 1) == 0) {
         flags = M_PKTHDR;
         clsize = MCLBYTES;
         btype = vmxnet3::VMXNET3_BTYPE_HEAD;
-    } else {
-        flags = 0;
-        clsize = MJUMPAGESIZE;
-        btype = vmxnet3::VMXNET3_BTYPE_BODY;
-    }
-    auto m = m_getjcl(M_NOWAIT, MT_DATA, flags, clsize);
-    if (m == NULL) {
-        panic("mbuf allocation failed");
-        return -1;
-    }
-    if (btype == vmxnet3::VMXNET3_BTYPE_HEAD) {
+        m = m_getjcl(M_NOWAIT, MT_DATA, flags, clsize);
+        if (m == NULL) {
+            panic("mbuf allocation failed");
+            return -1;
+        }
         m->m_hdr.mh_len = m->M_dat.MH.MH_pkthdr.len = clsize;
         m_adj(m, ETHER_ALIGN);
-    }else
+    } else {
+        flags = 0;
+        clsize = memory::page_size;
+        btype = vmxnet3::VMXNET3_BTYPE_BODY;
+        auto page = memory::alloc_page();
+        m = m_get(M_DONTWAIT, MT_DATA);
+        auto refcnt = new unsigned;
+        m->M_dat.MH.MH_dat.MH_ext.ref_cnt = refcnt;
+        m_extadd(m, static_cast<char*>(page), clsize,
+                &vmxnet3_rxqueue::free_buffer_and_refcnt, page, refcnt, 0, EXT_EXTREF);
         m->m_hdr.mh_len = clsize;
+        m->m_hdr.mh_next = nullptr;
+    }
 
     buf[rid][idx] = m;
 
