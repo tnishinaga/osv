@@ -286,11 +286,11 @@ int vmxnet3_rxqueue::newbuf(int rid)
 
     if (rid == 0 && (idx % 1) == 0) {
         flags = M_PKTHDR;
-        clsize = MJUM16BYTES;
+        clsize = MCLBYTES;
         btype = vmxnet3::VMXNET3_BTYPE_HEAD;
     } else {
         flags = 0;
-        clsize = MJUM16BYTES;
+        clsize = MJUMPAGESIZE;
         btype = vmxnet3::VMXNET3_BTYPE_BODY;
     }
     auto m = m_getjcl(M_NOWAIT, MT_DATA, flags, clsize);
