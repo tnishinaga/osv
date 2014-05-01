@@ -467,6 +467,8 @@ void vmxnet3::fill_driver_shared()
     _drv_shared.set_mcast_table(_mcast_list.get_pa(),
                                 _mcast_list.get_size());
     _drv_shared.set_intr_config(2, IMM_AUTO);
+    for (unsigned i = 0; i < VMXNET3_MAX_INTRS; i++)
+        _drv_shared.layout->modlevel[i] = UPT1_IML_ADAPTIVE;
     _drv_shared.layout->upt_features = UPT1_F_CSUM | UPT1_F_LRO;
     _drv_shared.layout->mtu = 1500;
     _drv_shared.layout->ntxqueue = 1;
