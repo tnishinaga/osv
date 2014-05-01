@@ -177,6 +177,9 @@ private:
         UPT1_F_RSS = 0x0002,
         UPT1_F_VLAN = 0x0004,
         UPT1_F_LRO = 0x0008,
+        UPT1_IML_NONE = 0,
+        UPT1_IML_HIGHEST = 7,
+        UPT1_IML_ADAPTIVE = 8,
 
         //Interrupt mask mode
         IMM_AUTO = 0,
