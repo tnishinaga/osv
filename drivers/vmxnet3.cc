@@ -59,6 +59,9 @@
 #include <typeinfo>
 #include <cxxabi.h>
 
+TRACEPOINT(trace_vmxnet3_rxq_eof_rxcd, "rxcd rxd_idx:%u eop:%u sop:%u qid:%u len:%u udp:%u tcp:%u ipv6:%u ipv4:%u type:%u gen:%u", unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned);
+TRACEPOINT(trace_vmxnet3_rxq_eof_rxd, "rxd addr:%lx len:%u btype:%u dtype:%u gen:%u", unsigned long, unsigned, unsigned, unsigned, unsigned);
+
 using namespace memory;
 
 namespace vmw {
@@ -770,6 +773,26 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
         auto m = rxq.buf[rid][idx];
 
         assert(m != NULL);
+
+        trace_vmxnet3_rxq_eof_rxcd(
+            rxcd->layout->rxd_idx,
+            rxcd->layout->eop,
+            rxcd->layout->sop,
+            rxcd->layout->qid,
+            rxcd->layout->len,
+            rxcd->layout->udp,
+            rxcd->layout->tcp,
+            rxcd->layout->ipv6,
+            rxcd->layout->ipv4,
+            rxcd->layout->type,
+            rxcd->layout->gen);
+
+        trace_vmxnet3_rxq_eof_rxd(
+             rxd->layout->addr,
+             rxd->layout->len,
+             rxd->layout->btype,
+             rxd->layout->dtype,
+             rxd->layout->gen);
 
         if (rxr.fill != idx) {
             while(rxr.fill != idx) {
