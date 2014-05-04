@@ -59,7 +59,9 @@
 #include <typeinfo>
 #include <cxxabi.h>
 
-TRACEPOINT(trace_vmxnet3_rxq_eof_rxcd, "rxcd rxd_idx:%u eop:%u sop:%u qid:%u len:%u udp:%u tcp:%u ipv6:%u ipv4:%u type:%u gen:%u", unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned);
+TRACEPOINT(trace_vmxnet3_rxq_eof_rxcd, "rxcd rxd_idx:%u eop:%u sop:%u qid:%u rss_type:%u no_csum:%u rss_hash:%x len:%u", unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned);
+TRACEPOINT(trace_vmxnet3_rxq_eof_rxcd2, "rxcd2 error:%u csum:%x csum_ok:%u udp:%u tcp:%u ipcsum_ok:%u ipv6:%u ipv4:%u", unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned);
+TRACEPOINT(trace_vmxnet3_rxq_eof_rxcd3, "rxcd3 fragment:%u fcs:%u type:%u gen:%u", unsigned, unsigned, unsigned, unsigned);
 TRACEPOINT(trace_vmxnet3_rxq_eof_rxd, "rxd addr:%lx len:%u btype:%u dtype:%u gen:%u", unsigned long, unsigned, unsigned, unsigned, unsigned);
 
 using namespace memory;
@@ -779,14 +781,24 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
             rxcd->layout->eop,
             rxcd->layout->sop,
             rxcd->layout->qid,
-            rxcd->layout->len,
+            rxcd->layout->rss_type,
+            rxcd->layout->no_csum,
+            rxcd->layout->rss_type,
+            rxcd->layout->len);
+        trace_vmxnet3_rxq_eof_rxcd2(
+            rxcd->layout->error,
+            rxcd->layout->csum,
+            rxcd->layout->csum_ok,
             rxcd->layout->udp,
             rxcd->layout->tcp,
+            rxcd->layout->ipcsum_ok,
             rxcd->layout->ipv6,
-            rxcd->layout->ipv4,
+            rxcd->layout->ipv4);
+        trace_vmxnet3_rxq_eof_rxcd3(
+            rxcd->layout->fragment,
+            rxcd->layout->fcs,
             rxcd->layout->type,
             rxcd->layout->gen);
-
         trace_vmxnet3_rxq_eof_rxd(
              rxd->layout->addr,
              rxd->layout->len,
