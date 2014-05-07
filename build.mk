@@ -841,6 +841,7 @@ usr.img: bare.img $(out)/usr.manifest $(out)/cmdline
 osv.vmdk osv.vdi:
 	$(call quiet, echo Creating $@ as $(subst osv.,,$@))
 	$(call quiet, qemu-img convert -O $(subst osv.,,$@) usr.img $@)
+	$(call quiet, $(src)/scripts/imgedit.py setargs $@ "--trace=vmxnet3* $(shell cat $(out)/cmdline)", IMGEDIT $@)
 .PHONY: osv.vmdk osv.vdi
 
 $(jni): INCLUDES += -I /usr/lib/jvm/java/include -I /usr/lib/jvm/java/include/linux/
