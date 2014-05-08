@@ -59,8 +59,7 @@
 #include <typeinfo>
 #include <cxxabi.h>
 
-TRACEPOINT(trace_vmxnet3_rxq_eof_rxcd, "rxcd rxd_idx:%u eop:%u sop:%u qid:%u rss_type:%u no_csum:%u rss_hash:%x len:%u", unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned);
-TRACEPOINT(trace_vmxnet3_rxq_eof_rxcd2, "rxcd2 error:%u csum:%x csum_ok:%u udp:%u tcp:%u ipcsum_ok:%u ipv6:%u ipv4:%u", unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned);
+TRACEPOINT(trace_vmxnet3_rxq_eof_rxcd, "rxcd rxd_idx:%u eop:%u sop:%u qid:%u rss_type:%u no_csum:%u rss_hash:%x len:%u error:%u csum:%x csum_ok:%u udp:%u tcp:%u ipcsum_ok:%u ipv6:%u ipv4:%u", unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned);
 TRACEPOINT(trace_vmxnet3_rxq_eof_rxcd3, "rxcd3 fragment:%u fcs:%u type:%u gen:%u", unsigned, unsigned, unsigned, unsigned);
 TRACEPOINT(trace_vmxnet3_rxq_eof_rxd, "rxd addr:%lx len:%u btype:%u dtype:%u gen:%u", unsigned long, unsigned, unsigned, unsigned, unsigned);
 
@@ -784,8 +783,7 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
             rxcd->layout->rss_type,
             rxcd->layout->no_csum,
             rxcd->layout->rss_type,
-            rxcd->layout->len);
-        trace_vmxnet3_rxq_eof_rxcd2(
+            rxcd->layout->len,
             rxcd->layout->error,
             rxcd->layout->csum,
             rxcd->layout->csum_ok,
