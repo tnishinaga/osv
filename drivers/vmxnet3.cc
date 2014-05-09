@@ -59,9 +59,9 @@
 #include <typeinfo>
 #include <cxxabi.h>
 
-TRACEPOINT(trace_vmxnet3_rxq_eof_rxcd, "rxcd rxd_idx:%u eop:%u sop:%u qid:%u rss_type:%u no_csum:%u rss_hash:%x len:%u error:%u csum:%x csum_ok:%u udp:%u tcp:%u ipcsum_ok:%u ipv6:%u ipv4:%u", unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned);
-TRACEPOINT(trace_vmxnet3_rxq_eof_rxcd3, "rxcd3 fragment:%u fcs:%u type:%u gen:%u", unsigned, unsigned, unsigned, unsigned);
+TRACEPOINT(trace_vmxnet3_rxq_eof_rxcd, "rxcd rxd_idx:%u eop:%u sop:%u qid:%u rss_type:%u no_csum:%u rss_hash:%x len:%u error:%u vlan:%u vtag:%u csum:%x csum_ok:%u udp:%u tcp:%u ipcsum_ok:%u ipv6:%u ipv4:%u fragment:%u fcs:%u type:%u gen:%u", unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned);
 TRACEPOINT(trace_vmxnet3_rxq_eof_rxd, "rxd addr:%lx len:%u btype:%u dtype:%u gen:%u", unsigned long, unsigned, unsigned, unsigned, unsigned);
+TRACEPOINT(trace_vmxnet3_rxq_eof_UPT1_RxStats, "UPT_RxStats LRO_packets:%lu LRO_bytes:%lu ucast_packets:%lu ucast_bytes:%lu mcast_packets:%lu mcast_bytes:%lu bcast_packets:%lu bcast_bytes:%lu nobuffer:%lu error:%lu", unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long);
 
 using namespace memory;
 
@@ -751,6 +751,7 @@ void vmxnet3::txq_gc(vmxnet3_txqueue &txq)
 void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
 {
     auto &rxc = rxq.comp_ring;
+    auto &stats = rxq.layout->stats;
     struct mbuf *m_head = NULL, *m_tail = NULL;
 
     while(1) {
@@ -785,24 +786,36 @@ void vmxnet3::rxq_eof(vmxnet3_rxqueue &rxq)
             rxcd->layout->rss_type,
             rxcd->layout->len,
             rxcd->layout->error,
+            rxcd->layout->vlan,
+            rxcd->layout->vtag,
             rxcd->layout->csum,
             rxcd->layout->csum_ok,
             rxcd->layout->udp,
             rxcd->layout->tcp,
             rxcd->layout->ipcsum_ok,
             rxcd->layout->ipv6,
-            rxcd->layout->ipv4);
-        trace_vmxnet3_rxq_eof_rxcd3(
+            rxcd->layout->ipv4,
             rxcd->layout->fragment,
             rxcd->layout->fcs,
             rxcd->layout->type,
             rxcd->layout->gen);
         trace_vmxnet3_rxq_eof_rxd(
-             rxd->layout->addr,
-             rxd->layout->len,
-             rxd->layout->btype,
-             rxd->layout->dtype,
-             rxd->layout->gen);
+            rxd->layout->addr,
+            rxd->layout->len,
+            rxd->layout->btype,
+            rxd->layout->dtype,
+            rxd->layout->gen);
+        trace_vmxnet3_rxq_eof_UPT1_RxStats(
+            stats.LRO_packets,
+            stats.LRO_bytes,
+            stats.ucast_packets,
+            stats.ucast_bytes,
+            stats.mcast_packets,
+            stats.mcast_bytes,
+            stats.bcast_packets,
+            stats.bcast_bytes,
+            stats.nobuffer,
+            stats.error);
 
         if (rxr.fill != idx) {
             while(rxr.fill != idx) {
