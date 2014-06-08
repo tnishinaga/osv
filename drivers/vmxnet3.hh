@@ -18,6 +18,7 @@
 #include "drivers/pci-device.hh"
 #include <osv/mempool.hh>
 #include <osv/interrupt.hh>
+#include <osv/percpu_xmit.hh>
 
 namespace vmw {
 
@@ -89,6 +90,11 @@ public:
         VMXNET3_BTYPE_HEAD = 0, // Head only
         VMXNET3_BTYPE_BODY = 1 // Body only
     };
+    struct txq_req {
+        explicit txq_req(mbuf *_m) : m(_m) {}
+        mbuf *m;
+        int etype, proto, start;
+    };
     explicit vmxnet3(pci::device& dev);
     virtual ~vmxnet3() {};
 
@@ -97,6 +103,13 @@ public:
     virtual void dump_config(void);
     int transmit(struct mbuf* m_head);
     void receive_work();
+    int xmit_prep(mbuf* m_head, void*& cooky);
+    void kick_pending();
+    void kick_pending_with_thresh();
+    bool kick_hw();
+    void wake_worker();
+    int try_xmit_one_locked(void* cooky);
+    void xmit_one_locked(void *req);
 
     static hw_driver* probe(hw_device* dev);
 
@@ -193,8 +206,8 @@ private:
     u32 read_cmd(u32 cmd);
 
     void get_mac_address(u_int8_t *macaddr);
-    int txq_encap(vmxnet3_txqueue &txq, struct mbuf *m_head);
-    int txq_offload(struct mbuf *m, int *etype, int *proto, int *start);
+    int txq_encap(vmxnet3_txqueue &txq, struct txq_req *req);
+    int txq_offload(struct txq_req *req);
     void txq_gc(vmxnet3_txqueue &txq);
     void rxq_eof(vmxnet3_rxqueue &rxq);
     bool rxq_avail(vmxnet3_rxqueue &rxq);
@@ -205,6 +218,7 @@ private:
     void enable_interrupt(unsigned idx);
     void disable_interrupts();
     void disable_interrupt(unsigned idx);
+    int try_xmit_one_locked(struct txq_req *req);
 
     //maintains the vmxnet3 instance number for multiple adapters
     static int _instance;
@@ -246,9 +260,11 @@ private:
 
     memory::phys_contiguous_memory _mcast_list;
 
-    mutex _txq_lock;
-
     sched::thread _receive_task;
+
+    osv::tx_xmit_iterator<vmxnet3> _xmit_it;
+    osv::xmitter<vmxnet3, 4096> _xmitter;
+    sched::thread _worker;
 };
 
 }
