@@ -518,20 +518,11 @@ int vmxnet3::xmit_prep(mbuf* m_head, void*& cooky)
 
 int vmxnet3::try_xmit_one_locked(void *req)
 {
-    return xmit_one_locked(req);
+    struct mbuf *m_head = static_cast<struct mbuf *>(req);
+    return try_xmit_one_locked(m_head);
 }
 
 int vmxnet3::try_xmit_one_locked(struct mbuf *m_head)
-{
-    return xmit_one_locked(m_head);
-}
-
-int vmxnet3::xmit_one_locked(void *req)
-{
-    return xmit_one_locked(reinterpret_cast<struct mbuf *>(req));
-}
-
-int vmxnet3::xmit_one_locked(struct mbuf *m_head)
 {
     int error;
     int count = 0;
@@ -548,6 +539,17 @@ int vmxnet3::xmit_one_locked(struct mbuf *m_head)
     }
     error = txq_encap(_txq[0], m_head);
     return error;
+}
+
+void vmxnet3::xmit_one_locked(void *req)
+{
+    struct mbuf *m_head = static_cast<struct mbuf *>(req);
+    xmit_one_locked(m_head);
+}
+
+void vmxnet3::xmit_one_locked(struct mbuf *m_head)
+{
+    try_xmit_one_locked(m_head);
 }
 
 void vmxnet3::kick_pending(u16 thresh)
