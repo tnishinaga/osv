@@ -18,6 +18,7 @@
 #include "drivers/pci-device.hh"
 #include <osv/mempool.hh>
 #include <osv/interrupt.hh>
+#include <osv/percpu_xmit.hh>
 
 namespace vmw {
 
@@ -80,6 +81,34 @@ public:
     struct mbuf *m_currpkt_tail = nullptr;
 };
 
+/**
+ * @class tx_xmit_iterator
+ *
+ * This iterator will be used as an output iterator by the nway_merger
+ * instance that will merge the per-CPU tx_cpu_queue instances.
+ *
+ * It's operator=() will actually sent the packet to the (virtual) HW.
+ */
+template <class NetDevTxq>
+class tx_xmit_iterator {
+public:
+    tx_xmit_iterator(NetDevTxq* txq) : _q(txq) { }
+
+    // These ones will do nothing
+    tx_xmit_iterator& operator *() { return *this; }
+    tx_xmit_iterator& operator++() { return *this; }
+
+    /**
+     * Push the packet downstream
+     * @param tx_desc
+     */
+    void operator=(void* cooky) {
+        _q->xmit_one_locked(cooky);
+    }
+private:
+    NetDevTxq* _q;
+};
+
 class vmxnet3 : public hw_driver {
 public:
     enum {
@@ -97,6 +126,15 @@ public:
     virtual void dump_config(void);
     int transmit(struct mbuf* m_head);
     void receive_work();
+    int xmit_prep(mbuf* m_head, void*& cooky);
+    void kick_pending(u16 thresh = 1);
+    void kick_pending_with_thresh() {
+        kick_pending(_kick_thresh);
+    }
+    bool kick_hw();
+    void wake_worker();
+    int try_xmit_one_locked(void* cooky);
+    int xmit_one_locked(void *req);
 
     static hw_driver* probe(hw_device* dev);
 
@@ -205,6 +243,8 @@ private:
     void enable_interrupt(unsigned idx);
     void disable_interrupts();
     void disable_interrupt(unsigned idx);
+    int try_xmit_one_locked(struct mbuf *m_head);
+    int xmit_one_locked(struct mbuf *m_head);
 
     //maintains the vmxnet3 instance number for multiple adapters
     static int _instance;
@@ -249,6 +289,12 @@ private:
     mutex _txq_lock;
 
     sched::thread _receive_task;
+
+    tx_xmit_iterator<vmxnet3> _xmit_it;
+    const int _kick_thresh;
+    u16 _pkts_to_kick = 0;
+    osv::xmitter<vmxnet3, 4096> _xmitter;
+    sched::thread _xmit_task;
 };
 
 }

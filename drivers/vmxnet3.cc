@@ -291,6 +291,10 @@ vmxnet3::vmxnet3(pci::device &dev)
                             VMXNET3_QUEUES_SHARED_ALIGN)
     , _mcast_list(VMXNET3_MULTICAST_MAX * VMXNET3_ETH_ALEN, VMXNET3_MULTICAST_ALIGN)
     , _receive_task([&] { receive_work(); }, sched::thread::attr().name("vmxnet3-receive"))
+    , _xmit_it(this)
+    , _kick_thresh(512)
+    , _xmitter(this)
+    , _xmit_task([&] { _xmitter.poll_until([] { return false; }, _xmit_it); })
 {
     u_int8_t macaddr[6];
 
@@ -503,6 +507,32 @@ u32 vmxnet3::read_cmd(u32 cmd)
 
 int vmxnet3::transmit(struct mbuf *m_head)
 {
+    return _xmitter.xmit(m_head);
+}
+
+int vmxnet3::xmit_prep(mbuf* m_head, void*& cooky)
+{
+    cooky = m_head;
+    return 0;
+}
+
+int vmxnet3::try_xmit_one_locked(void *req)
+{
+    return xmit_one_locked(req);
+}
+
+int vmxnet3::try_xmit_one_locked(struct mbuf *m_head)
+{
+    return xmit_one_locked(m_head);
+}
+
+int vmxnet3::xmit_one_locked(void *req)
+{
+    return xmit_one_locked(reinterpret_cast<struct mbuf *>(req));
+}
+
+int vmxnet3::xmit_one_locked(struct mbuf *m_head)
+{
     int error;
     WITH_LOCK(_txq_lock) {
         int count = 0;
@@ -520,6 +550,24 @@ int vmxnet3::transmit(struct mbuf *m_head)
         error = txq_encap(_txq[0], m_head);
     }
     return error;
+}
+
+void vmxnet3::kick_pending(u16 thresh)
+{
+    if (_pkts_to_kick >= thresh) {
+        _pkts_to_kick = 0;
+        kick_hw();
+    }
+}
+
+bool vmxnet3::kick_hw()
+{
+    return true;
+}
+
+void vmxnet3::wake_worker()
+{
+    _xmit_task.wake();
 }
 
 void vmxnet3::receive_work()
