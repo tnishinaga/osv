@@ -8,6 +8,8 @@
 #ifndef VMWARE3_DRIVER_H
 #define VMWARE3_DRIVER_H
 
+#include <boost/function_output_iterator.hpp>
+
 #include <bsd/porting/netport.h>
 #include <bsd/sys/net/if_var.h>
 #include <bsd/sys/net/if.h>
@@ -81,33 +83,30 @@ public:
     struct mbuf *m_currpkt_tail = nullptr;
 };
 
-/**
- * @class tx_xmit_iterator
- *
- * This iterator will be used as an output iterator by the nway_merger
- * instance that will merge the per-CPU tx_cpu_queue instances.
- *
- * It's operator=() will actually sent the packet to the (virtual) HW.
- */
-template <class NetDevTxq>
-class tx_xmit_iterator {
-public:
-    tx_xmit_iterator(NetDevTxq* txq) : _q(txq) { }
-
-    // These ones will do nothing
-    tx_xmit_iterator& operator *() { return *this; }
-    tx_xmit_iterator& operator++() { return *this; }
-
     /**
-     * Push the packet downstream
-     * @param tx_desc
+     * @class xmitter_functor
+     *
+     * This functor (through boost::function_output_iterator) will be used as an
+     * output iterator by the nway_merger instance that will merge the per-CPU
+     * tx_cpu_queue instances.
      */
-    void operator=(void* cooky) {
-        _q->xmit_one_locked(cooky);
-    }
-private:
-    NetDevTxq* _q;
-};
+    template <class NetDevTxq>
+    struct xmitter_functor {
+        xmitter_functor(NetDevTxq* txq) : _q(txq) {}
+
+        /**
+         * Push the packet downstream
+         * @param cooky opaque pointer representing the descriptor of the
+         *              current packet to be sent.
+         */
+        void operator()(void* cooky) const { _q->xmit_one_locked(cooky); }
+
+        NetDevTxq* _q;
+    };
+    template <class NetDevTxq>
+    using tx_xmit_iterator = boost::function_output_iterator<xmitter_functor<NetDevTxq>>;
+
+
 
 class vmxnet3 : public hw_driver {
 public:
@@ -294,7 +293,7 @@ private:
     const int _kick_thresh;
     u16 _pkts_to_kick = 0;
     osv::xmitter<vmxnet3, 4096> _xmitter;
-    sched::thread _xmit_task;
+    sched::thread _worker;
 };
 
 }
