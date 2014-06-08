@@ -243,7 +243,6 @@ private:
     void disable_interrupts();
     void disable_interrupt(unsigned idx);
     int try_xmit_one_locked(struct mbuf *m_head);
-    void xmit_one_locked(struct mbuf *m_head);
 
     //maintains the vmxnet3 instance number for multiple adapters
     static int _instance;
