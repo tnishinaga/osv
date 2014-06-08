@@ -285,8 +285,6 @@ private:
 
     memory::phys_contiguous_memory _mcast_list;
 
-    mutex _txq_lock;
-
     sched::thread _receive_task;
 
     tx_xmit_iterator<vmxnet3> _xmit_it;

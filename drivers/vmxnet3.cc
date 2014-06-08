@@ -534,21 +534,19 @@ int vmxnet3::xmit_one_locked(void *req)
 int vmxnet3::xmit_one_locked(struct mbuf *m_head)
 {
     int error;
-    WITH_LOCK(_txq_lock) {
-        int count = 0;
-        for (auto m = m_head; m != NULL; m = m->m_hdr.mh_next)
-            ++count;
+    int count = 0;
+    for (auto m = m_head; m != NULL; m = m->m_hdr.mh_next)
+        ++count;
+    if (_txq[0].avail < count) {
+        txq_gc(_txq[0]);
         if (_txq[0].avail < count) {
-            txq_gc(_txq[0]);
-            if (_txq[0].avail < count) {
-                vmxnet3_d("%s: no room", __FUNCTION__);
-                m_freem(m_head);
-                _txq_stats.tx_drops++;
-                return ENOBUFS;
-            }
+            vmxnet3_d("%s: no room", __FUNCTION__);
+            m_freem(m_head);
+            _txq_stats.tx_drops++;
+            return ENOBUFS;
         }
-        error = txq_encap(_txq[0], m_head);
     }
+    error = txq_encap(_txq[0], m_head);
     return error;
 }
 
