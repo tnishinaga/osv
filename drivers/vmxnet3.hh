@@ -133,7 +133,7 @@ public:
     bool kick_hw();
     void wake_worker();
     int try_xmit_one_locked(void* cooky);
-    int xmit_one_locked(void *req);
+    void xmit_one_locked(void *req);
 
     static hw_driver* probe(hw_device* dev);
 
@@ -243,7 +243,7 @@ private:
     void disable_interrupts();
     void disable_interrupt(unsigned idx);
     int try_xmit_one_locked(struct mbuf *m_head);
-    int xmit_one_locked(struct mbuf *m_head);
+    void xmit_one_locked(struct mbuf *m_head);
 
     //maintains the vmxnet3 instance number for multiple adapters
     static int _instance;
