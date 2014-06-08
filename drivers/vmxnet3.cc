@@ -544,12 +544,17 @@ int vmxnet3::try_xmit_one_locked(struct mbuf *m_head)
 void vmxnet3::xmit_one_locked(void *req)
 {
     struct mbuf *m_head = static_cast<struct mbuf *>(req);
-    xmit_one_locked(m_head);
-}
+    while (try_xmit_one_locked(m_head)) {
+        // We are going to poll - flush the pending packets
+        kick_pending();
+        sched::thread::yield();
+    }
 
-void vmxnet3::xmit_one_locked(struct mbuf *m_head)
-{
-    try_xmit_one_locked(m_head);
+    //
+    // It was a good packet - increase the counter of a "pending for a kick"
+    // packets.
+    //
+    _pkts_to_kick++;
 }
 
 void vmxnet3::kick_pending(u16 thresh)
