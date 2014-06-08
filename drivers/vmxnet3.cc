@@ -294,7 +294,7 @@ vmxnet3::vmxnet3(pci::device &dev)
     , _xmit_it(this)
     , _kick_thresh(512)
     , _xmitter(this)
-    , _xmit_task([&] { _xmitter.poll_until([] { return false; }, _xmit_it); })
+    , _worker([this] { _xmitter.poll_until([] { return false; }, _xmit_it); })
 {
     u_int8_t macaddr[6];
 
@@ -567,7 +567,7 @@ bool vmxnet3::kick_hw()
 
 void vmxnet3::wake_worker()
 {
-    _xmit_task.wake();
+    _worker.wake();
 }
 
 void vmxnet3::receive_work()
