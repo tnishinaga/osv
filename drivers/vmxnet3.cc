@@ -530,12 +530,8 @@ int vmxnet3::try_xmit_one_locked(struct mbuf *m_head)
         ++count;
     if (_txq[0].avail < count) {
         txq_gc(_txq[0]);
-        if (_txq[0].avail < count) {
-            vmxnet3_d("%s: no room", __FUNCTION__);
-            m_freem(m_head);
-            _txq_stats.tx_drops++;
+        if (_txq[0].avail < count)
             return ENOBUFS;
-        }
     }
     error = txq_encap(_txq[0], m_head);
     return error;
