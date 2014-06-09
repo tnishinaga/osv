@@ -126,10 +126,8 @@ public:
     int transmit(struct mbuf* m_head);
     void receive_work();
     int xmit_prep(mbuf* m_head, void*& cooky);
-    void kick_pending(u16 thresh = 1);
-    void kick_pending_with_thresh() {
-        kick_pending(_kick_thresh);
-    }
+    void kick_pending();
+    void kick_pending_with_thresh();
     bool kick_hw();
     void wake_worker();
     int try_xmit_one_locked(void* cooky);
@@ -287,8 +285,6 @@ private:
     sched::thread _receive_task;
 
     tx_xmit_iterator<vmxnet3> _xmit_it;
-    const int _kick_thresh;
-    u16 _pkts_to_kick = 0;
     osv::xmitter<vmxnet3, 4096> _xmitter;
     sched::thread _worker;
 };

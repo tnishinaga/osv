@@ -292,7 +292,6 @@ vmxnet3::vmxnet3(pci::device &dev)
     , _mcast_list(VMXNET3_MULTICAST_MAX * VMXNET3_ETH_ALEN, VMXNET3_MULTICAST_ALIGN)
     , _receive_task([&] { receive_work(); }, sched::thread::attr().name("vmxnet3-receive"))
     , _xmit_it(this)
-    , _kick_thresh(512)
     , _xmitter(this)
     , _worker([this] { _xmitter.poll_until([] { return false; }, _xmit_it); })
 {
@@ -550,19 +549,26 @@ void vmxnet3::xmit_one_locked(void *req)
     // It was a good packet - increase the counter of a "pending for a kick"
     // packets.
     //
-    _pkts_to_kick++;
+    ++_txq[0].layout->npending;
 }
 
-void vmxnet3::kick_pending(u16 thresh)
+void vmxnet3::kick_pending()
 {
-    if (_pkts_to_kick >= thresh) {
-        _pkts_to_kick = 0;
+    kick_hw();
+}
+
+void vmxnet3::kick_pending_with_thresh()
+{
+    if (_txq[0].layout->npending >= _txq[0].layout->intr_threshold)
         kick_hw();
-    }
 }
 
 bool vmxnet3::kick_hw()
 {
+    auto &txr = _txq[0].cmd_ring;
+
+    _txq[0].layout->npending = 0;
+    _bar0->writel(VMXNET3_BAR0_TXH, txr.head);
     return true;
 }
 
@@ -591,7 +597,6 @@ int vmxnet3::txq_encap(vmxnet3_txqueue &txq, struct mbuf *m_head)
     auto txd = txr.get_desc(txr.head);
     auto sop = txr.get_desc(txr.head);
     auto gen = txr.gen ^ 1; // Owned by cpu (yet)
-    auto tx = 0;
     u64 tx_bytes = 0;
     int etype, proto, start;
 
@@ -629,7 +634,6 @@ int vmxnet3::txq_encap(vmxnet3_txqueue &txq, struct mbuf *m_head)
             txr.gen ^= 1;
         }
         gen = txr.gen;
-        tx++;
     }
     txd->layout->eop = 1;
     txd->layout->compreq = 1;
@@ -652,11 +656,6 @@ int vmxnet3::txq_encap(vmxnet3_txqueue &txq, struct mbuf *m_head)
     // Finally, change the ownership.
     wmb();
     sop->layout->gen ^= 1;
-
-    if (++txq.layout->npending >= txq.layout->intr_threshold) {
-        txq.layout->npending = 0;
-        _bar0->writel(VMXNET3_BAR0_TXH, txr.head);
-    }
 
     _txq_stats.tx_bytes += tx_bytes;
     _txq_stats.tx_packets++;
