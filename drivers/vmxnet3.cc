@@ -163,28 +163,31 @@ void vmxnet3::fill_stats(struct if_data* out_data) const
     out_data->ifi_ibytes   += _rxq[0].stats.rx_bytes;
     out_data->ifi_iqdrops  += _rxq[0].stats.rx_drops;
     out_data->ifi_ierrors  += _rxq[0].stats.rx_csum_err;
-    out_data->ifi_opackets += _txq_stats.tx_packets;
-    out_data->ifi_obytes   += _txq_stats.tx_bytes;
-    out_data->ifi_oerrors  += _txq_stats.tx_err + _txq_stats.tx_drops;
+    out_data->ifi_opackets += _txq[0].stats.tx_packets;
+    out_data->ifi_obytes   += _txq[0].stats.tx_bytes;
+    out_data->ifi_oerrors  += _txq[0].stats.tx_err + _txq[0].stats.tx_drops;
 }
 
-void vmxnet3_txqueue::init()
+void vmxnet3_txqueue::init(struct ifnet* ifn, pci::bar *bar0)
 {
-    layout->cmd_ring = cmd_ring.get_desc_pa();
-    layout->cmd_ring_len = cmd_ring.get_desc_num();
-    layout->comp_ring = comp_ring.get_desc_pa();
-    layout->comp_ring_len = comp_ring.get_desc_num();
+    _ifn = ifn;
+    _bar0 = bar0;
+
+    layout->cmd_ring = _cmd_ring.get_desc_pa();
+    layout->cmd_ring_len = _cmd_ring.get_desc_num();
+    layout->comp_ring = _comp_ring.get_desc_pa();
+    layout->comp_ring_len = _comp_ring.get_desc_num();
 
     layout->driver_data = mmu::virt_to_phys(this);
     layout->driver_data_len = sizeof(*this);
 
-    auto &txr = cmd_ring;
+    auto &txr = _cmd_ring;
     txr.head = 0;
     txr.next = 0;
     txr.gen = VMXNET3_INIT_GEN;
     txr.clear_descs();
 
-    auto &txc = comp_ring;
+    auto &txc = _comp_ring;
     txc.next = 0;
     txc.gen = VMXNET3_INIT_GEN;
     txc.clear_descs();
@@ -277,10 +280,6 @@ vmxnet3::vmxnet3(pci::device &dev)
                             vmxnet3_rxq_shared::size() * VMXNET3_RX_QUEUES,
                             VMXNET3_QUEUES_SHARED_ALIGN)
     , _mcast_list(VMXNET3_MULTICAST_MAX * VMXNET3_ETH_ALEN, VMXNET3_MULTICAST_ALIGN)
-    , _xmit_it(this)
-    , _kick_thresh(512)
-    , _xmitter(this)
-    , _worker([this] { _xmitter.poll_until([] { return false; }, _xmit_it); })
 {
     u_int8_t macaddr[6];
 
@@ -288,7 +287,6 @@ vmxnet3::vmxnet3(pci::device &dev)
     _dev.set_bus_master(true);
     _dev.msix_enable();
     assert(dev.is_msix());
-    disable_interrupts();
     stop();
     vmxnet3_i("VMXNET3 INSTANCE");
     _id = _instance++;
@@ -307,6 +305,7 @@ vmxnet3::vmxnet3(pci::device &dev)
 
     do_version_handshake();
     allocate_interrupts();
+    disable_interrupts();
     fill_driver_shared();
 
     enable_device();
@@ -354,7 +353,7 @@ void vmxnet3::allocate_interrupts()
         { 0, [] {}, nullptr },
         { 1, [] {}, &_rxq[0].task }
     });
-    _txq[0].layout->intr_idx = 0;
+    _txq[0].set_intr_idx(0);
     _rxq[0].set_intr_idx(1);
 }
 
@@ -366,6 +365,7 @@ void vmxnet3::enable_interrupts()
 void vmxnet3::disable_interrupts()
 {
     _rxq[0].disable_interrupt();
+    _txq[0].disable_interrupt();
 }
 
 void vmxnet3::attach_queues_shared(struct ifnet* ifn, pci::bar *bar0)
@@ -376,7 +376,7 @@ void vmxnet3::attach_queues_shared(struct ifnet* ifn, pci::bar *bar0)
     slice_memory(va, _rxq);
 
     for (auto &q : _txq) {
-        q.init();
+        q.init(ifn, bar0);
     }
     for (auto &q : _rxq) {
         q.init(ifn, bar0);
@@ -482,37 +482,42 @@ u32 vmxnet3::read_cmd(u32 cmd)
 
 int vmxnet3::transmit(struct mbuf *m_head)
 {
+    return _txq[0].transmit(m_head);
+}
+
+int vmxnet3_txqueue::transmit(struct mbuf *m_head)
+{
     return _xmitter.xmit(m_head);
 }
 
-int vmxnet3::xmit_prep(mbuf* m_head, void*& cooky)
+int vmxnet3_txqueue::xmit_prep(mbuf* m_head, void*& cooky)
 {
     cooky = m_head;
     return 0;
 }
 
-int vmxnet3::try_xmit_one_locked(void *req)
+int vmxnet3_txqueue::try_xmit_one_locked(void *req)
 {
     struct mbuf *m_head = static_cast<struct mbuf *>(req);
     return try_xmit_one_locked(m_head);
 }
 
-int vmxnet3::try_xmit_one_locked(struct mbuf *m_head)
+int vmxnet3_txqueue::try_xmit_one_locked(struct mbuf *m_head)
 {
     int error;
     int count = 0;
     for (auto m = m_head; m != NULL; m = m->m_hdr.mh_next)
         ++count;
-    if (_txq[0].avail < count) {
-        txq_gc(_txq[0]);
-        if (_txq[0].avail < count)
+    if (_avail < count) {
+        gc();
+        if (_avail < count)
             return ENOBUFS;
     }
-    error = txq_encap(_txq[0], m_head);
+    error = encap(m_head);
     return error;
 }
 
-void vmxnet3::xmit_one_locked(void *req)
+void vmxnet3_txqueue::xmit_one_locked(void *req)
 {
     struct mbuf *m_head = static_cast<struct mbuf *>(req);
     while (try_xmit_one_locked(m_head)) {
@@ -528,7 +533,7 @@ void vmxnet3::xmit_one_locked(void *req)
     _pkts_to_kick++;
 }
 
-void vmxnet3::kick_pending(u16 thresh)
+void vmxnet3_txqueue::kick_pending(u16 thresh)
 {
     if (_pkts_to_kick >= thresh) {
         _pkts_to_kick = 0;
@@ -536,19 +541,19 @@ void vmxnet3::kick_pending(u16 thresh)
     }
 }
 
-bool vmxnet3::kick_hw()
+bool vmxnet3_txqueue::kick_hw()
 {
     return true;
 }
 
-void vmxnet3::wake_worker()
+void vmxnet3_txqueue::wake_worker()
 {
-    _worker.wake();
+    _task.wake();
 }
 
-int vmxnet3::txq_encap(vmxnet3_txqueue &txq, struct mbuf *m_head)
+int vmxnet3_txqueue::encap(struct mbuf *m_head)
 {
-    auto &txr = txq.cmd_ring;
+    auto &txr = _cmd_ring;
     auto txd = txr.get_desc(txr.head);
     auto sop = txr.get_desc(txr.head);
     auto gen = txr.gen ^ 1; // Owned by cpu (yet)
@@ -558,20 +563,20 @@ int vmxnet3::txq_encap(vmxnet3_txqueue &txq, struct mbuf *m_head)
 
     if (m_head->M_dat.MH.MH_pkthdr.csum_flags
         & (CSUM_TCP | CSUM_UDP | CSUM_TSO)) {
-        int error = txq_offload(m_head, &etype, &proto, &start);
+        int error = offload(m_head, &etype, &proto, &start);
         if (error) {
             m_freem(m_head);
             return error;
         }
     }
 
-    assert(txq.buf[txr.head] == NULL);
-    txq.buf[txr.head] = m_head;
+    assert(_buf[txr.head] == NULL);
+    _buf[txr.head] = m_head;
     for (auto m = m_head; m != NULL; m = m->m_hdr.mh_next) {
         int frag_len = m->m_hdr.mh_len;
         vmxnet3_d("Frag len=%d:", frag_len);
         tx_bytes += frag_len;
-        --txq.avail;
+        --_avail;
         txd = txr.get_desc(txr.head);
         txd->layout->addr = mmu::virt_to_phys(m->m_hdr.mh_data);
         txd->layout->len = frag_len;
@@ -614,24 +619,24 @@ int vmxnet3::txq_encap(vmxnet3_txqueue &txq, struct mbuf *m_head)
     wmb();
     sop->layout->gen ^= 1;
 
-    if (++txq.layout->npending >= txq.layout->intr_threshold) {
-        txq.layout->npending = 0;
+    if (++layout->npending >= layout->intr_threshold) {
+        layout->npending = 0;
         _bar0->writel(VMXNET3_BAR0_TXH, txr.head);
     }
     if (tx > 0) {
-        if (txq.layout->npending > 0) {
-            txq.layout->npending = 0;
+        if (layout->npending > 0) {
+            layout->npending = 0;
             _bar0->writel(VMXNET3_BAR0_TXH, txr.head);
         }
     }
 
-    _txq_stats.tx_bytes += tx_bytes;
-    _txq_stats.tx_packets++;
+    stats.tx_bytes += tx_bytes;
+    stats.tx_packets++;
 
     return 0;
 }
 
-int vmxnet3::txq_offload(struct mbuf *m, int *etype, int *proto, int *start)
+int vmxnet3_txqueue::offload(struct mbuf *m, int *etype, int *proto, int *start)
 {
     struct ether_vlan_header *evh;
     int offset;
@@ -688,10 +693,10 @@ int vmxnet3::txq_offload(struct mbuf *m, int *etype, int *proto, int *start)
     return (0);
 }
 
-void vmxnet3::txq_gc(vmxnet3_txqueue &txq)
+void vmxnet3_txqueue::gc()
 {
-    auto &txr = txq.cmd_ring;
-    auto &txc = txq.comp_ring;
+    auto &txr = _cmd_ring;
+    auto &txc = _comp_ring;
     while(1) {
         auto txcd = txc.get_desc(txc.next);
         if (txcd->layout->gen != txc.gen)
@@ -703,7 +708,7 @@ void vmxnet3::txq_gc(vmxnet3_txqueue &txq)
         }
 
         auto sop = txr.next;
-        auto m_head = txq.buf[sop];
+        auto m_head = _buf[sop];
 
         if (m_head != NULL) {
             int count = 0;
@@ -714,13 +719,23 @@ void vmxnet3::txq_gc(vmxnet3_txqueue &txq)
                 m_free(m);
                 m = m_next;
             }
-            txq.buf[sop] = NULL;
-            txq.avail += count;
+            _buf[sop] = NULL;
+            _avail += count;
         }
 
         txr.next =
             (txcd->layout->eop_idx + 1 ) % txr.get_desc_num();
     }
+}
+
+void vmxnet3_txqueue::enable_interrupt()
+{
+    _bar0->writel(VMXNET3_BAR0_IMASK(layout->intr_idx), 0);
+}
+
+void vmxnet3_txqueue::disable_interrupt()
+{
+    _bar0->writel(VMXNET3_BAR0_IMASK(layout->intr_idx), 1);
 }
 
 void vmxnet3_rxqueue::receive_work()

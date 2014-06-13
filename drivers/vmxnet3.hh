@@ -142,18 +142,82 @@ template<class DescT, int NDesc>
         DescT      _desc[NDesc];
     };
 
+    /**
+     * @class xmitter_functor
+     *
+     * This functor (through boost::function_output_iterator) will be used as an
+     * output iterator by the nway_merger instance that will merge the per-CPU
+     * tx_cpu_queue instances.
+     */
+    template <class NetDevTxq>
+    struct xmitter_functor {
+        xmitter_functor(NetDevTxq* txq) : _q(txq) {}
+
+        /**
+         * Push the packet downstream
+         * @param cooky opaque pointer representing the descriptor of the
+         *              current packet to be sent.
+         */
+        void operator()(void* cooky) const { _q->xmit_one_locked(cooky); }
+
+        NetDevTxq* _q;
+    };
+    template <class NetDevTxq>
+    using tx_xmit_iterator = boost::function_output_iterator<xmitter_functor<NetDevTxq>>;
+
 class vmxnet3_txqueue : public vmxnet3_txq_shared {
+    friend xmitter_functor<vmxnet3_txqueue>;
 public:
-    void init();
+    explicit vmxnet3_txqueue()
+    : _xmit_it(this)
+    , _xmitter(this)
+    , _task([this] { _xmitter.poll_until([] { return false; }, _xmit_it); }) 
+    {}
+
+    void init(struct ifnet* ifn, pci::bar *bar0);
     void set_intr_idx(unsigned idx) { layout->intr_idx = static_cast<u8>(idx); }
-    int enqueue(struct mbuf *m);
+    void enable_interrupt();
+    void disable_interrupt();
+    int transmit(struct mbuf* m_head);
+    void kick_pending(u16 thresh = 1);
+    void kick_pending_with_thresh() {
+        kick_pending(_kick_thresh);
+    }
+    bool kick_hw();
+    int xmit_prep(mbuf* m_head, void*& cooky);
+    int try_xmit_one_locked(void* cooky);
+    void xmit_one_locked(void *req);
+    void wake_worker();
+
+    struct {
+        u64 tx_packets; /* if_opackets */
+        u64 tx_bytes;   /* if_obytes */
+        u64 tx_err;     /* Number of broken packets */
+        u64 tx_drops;   /* Number of dropped packets */
+        u64 tx_csum;    /* CSUM offload requests */
+        u64 tx_tso;     /* GSO/TSO packets */
+        /* u64 tx_rescheduled; */ /* TODO when we implement xoff */
+    } stats = { 0 };
+
+private:
+    int encap(struct mbuf *m_head);
+    int offload(struct mbuf *m, int *etype, int *proto, int *start);
+    void gc();
+    int try_xmit_one_locked(struct mbuf *m_head);
+
     typedef vmxnet3_ring<vmxnet3_tx_desc, VMXNET3_MAX_TX_NDESC> cmdRingT;
     typedef vmxnet3_ring<vmxnet3_tx_compdesc, VMXNET3_MAX_TX_NCOMPDESC> compRingT;
-    cmdRingT cmd_ring;
-
-    compRingT comp_ring;
-    struct mbuf *buf[VMXNET3_MAX_TX_NDESC];
-    int avail = VMXNET3_MAX_TX_NDESC;
+    cmdRingT _cmd_ring;
+    compRingT _comp_ring;
+    struct mbuf *_buf[VMXNET3_MAX_TX_NDESC];
+    int _avail = VMXNET3_MAX_TX_NDESC;
+    const int _kick_thresh = 512;
+    u16 _pkts_to_kick = 0;
+    tx_xmit_iterator<vmxnet3_txqueue> _xmit_it;
+    osv::xmitter<vmxnet3_txqueue, 4096> _xmitter;
+    sched::thread _task;
+    struct ifnet* _ifn;
+    pci::bar *_bar0;
 };
 
 class vmxnet3_rxqueue : public vmxnet3_rxq_shared {
@@ -194,30 +258,6 @@ private:
     pci::bar *_bar0;
 };
 
-    /**
-     * @class xmitter_functor
-     *
-     * This functor (through boost::function_output_iterator) will be used as an
-     * output iterator by the nway_merger instance that will merge the per-CPU
-     * tx_cpu_queue instances.
-     */
-    template <class NetDevTxq>
-    struct xmitter_functor {
-        xmitter_functor(NetDevTxq* txq) : _q(txq) {}
-
-        /**
-         * Push the packet downstream
-         * @param cooky opaque pointer representing the descriptor of the
-         *              current packet to be sent.
-         */
-        void operator()(void* cooky) const { _q->xmit_one_locked(cooky); }
-
-        NetDevTxq* _q;
-    };
-    template <class NetDevTxq>
-    using tx_xmit_iterator = boost::function_output_iterator<xmitter_functor<NetDevTxq>>;
-
-
 
 class vmxnet3 : public hw_driver {
 public:
@@ -227,18 +267,10 @@ public:
     virtual const std::string get_name() { return std::string("vmxnet3"); }
 
     virtual void dump_config(void);
-    int transmit(struct mbuf* m_head);
-    int xmit_prep(mbuf* m_head, void*& cooky);
-    void kick_pending(u16 thresh = 1);
-    void kick_pending_with_thresh() {
-        kick_pending(_kick_thresh);
-    }
-    bool kick_hw();
-    void wake_worker();
-    int try_xmit_one_locked(void* cooky);
-    void xmit_one_locked(void *req);
 
     static hw_driver* probe(hw_device* dev);
+
+    int transmit(struct mbuf* m_head);
 
     /**
      * Fill the if_data buffer with data from our iface including those that
@@ -248,7 +280,6 @@ public:
     void fill_stats(struct if_data* out_data) const;
 
 private:
-
     void parse_pci_config();
     void stop();
     void enable_device();
@@ -264,12 +295,8 @@ private:
     u32 read_cmd(u32 cmd);
 
     void get_mac_address(u_int8_t *macaddr);
-    int txq_encap(vmxnet3_txqueue &txq, struct mbuf *m_head);
-    int txq_offload(struct mbuf *m, int *etype, int *proto, int *start);
-    void txq_gc(vmxnet3_txqueue &txq);
     void enable_interrupts();
     void disable_interrupts();
-    int try_xmit_one_locked(struct mbuf *m_head);
 
     //maintains the vmxnet3 instance number for multiple adapters
     static int _instance;
@@ -278,16 +305,6 @@ private:
 
     pci::device& _dev;
     interrupt_manager _msi;
-
-    struct txq_stats {
-        u64 tx_packets; /* if_opackets */
-        u64 tx_bytes;   /* if_obytes */
-        u64 tx_err;     /* Number of broken packets */
-        u64 tx_drops;   /* Number of dropped packets */
-        u64 tx_csum;    /* CSUM offload requests */
-        u64 tx_tso;     /* GSO/TSO packets */
-        /* u64 tx_rescheduled; */ /* TODO when we implement xoff */
-    } _txq_stats = { 0 };
 
     //Shared memory
     pci::bar *_bar0 = nullptr;
@@ -302,12 +319,6 @@ private:
     vmxnet3_rxqueue _rxq[VMXNET3_RX_QUEUES];
 
     memory::phys_contiguous_memory _mcast_list;
-
-    tx_xmit_iterator<vmxnet3> _xmit_it;
-    const int _kick_thresh;
-    u16 _pkts_to_kick = 0;
-    osv::xmitter<vmxnet3, 4096> _xmitter;
-    sched::thread _worker;
 };
 
 }
