@@ -554,7 +554,8 @@ void vmxnet3::xmit_one_locked(void *req)
 
 void vmxnet3::kick_pending()
 {
-    kick_hw();
+    if (_txq[0].layout->npending)
+        kick_hw();
 }
 
 void vmxnet3::kick_pending_with_thresh()
