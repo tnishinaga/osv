@@ -511,35 +511,43 @@ int vmxnet3::transmit(struct mbuf *m_head)
 
 int vmxnet3::xmit_prep(mbuf* m_head, void*& cooky)
 {
-    cooky = m_head;
+    struct txq_req *req = new txq_req(m_head);
+    if (m_head->M_dat.MH.MH_pkthdr.csum_flags
+        & (CSUM_TCP | CSUM_UDP | CSUM_TSO)) {
+        int error = txq_offload(req);
+        if (error)
+            return error;
+    }
+    cooky = req;
     return 0;
 }
 
 int vmxnet3::try_xmit_one_locked(void *req)
 {
-    struct mbuf *m_head = static_cast<struct mbuf *>(req);
-    return try_xmit_one_locked(m_head);
+    auto _req = static_cast<struct txq_req *>(req);
+    return try_xmit_one_locked(_req);
 }
 
-int vmxnet3::try_xmit_one_locked(struct mbuf *m_head)
+int vmxnet3::try_xmit_one_locked(struct txq_req *req)
 {
     int error;
     int count = 0;
-    for (auto m = m_head; m != NULL; m = m->m_hdr.mh_next)
+    for (auto m = req->m; m != NULL; m = m->m_hdr.mh_next)
         ++count;
     if (_txq[0].avail < count) {
         txq_gc(_txq[0]);
         if (_txq[0].avail < count)
             return ENOBUFS;
     }
-    error = txq_encap(_txq[0], m_head);
+    error = txq_encap(_txq[0], req);
+    delete req;
     return error;
 }
 
 void vmxnet3::xmit_one_locked(void *req)
 {
-    struct mbuf *m_head = static_cast<struct mbuf *>(req);
-    while (try_xmit_one_locked(m_head)) {
+    auto _req = static_cast<struct txq_req *>(req);
+    while (try_xmit_one_locked(_req)) {
         // We are going to poll - flush the pending packets
         kick_pending();
         sched::thread::yield();
@@ -592,23 +600,14 @@ void vmxnet3::receive_work()
     }
 }
 
-int vmxnet3::txq_encap(vmxnet3_txqueue &txq, struct mbuf *m_head)
+int vmxnet3::txq_encap(vmxnet3_txqueue &txq, struct txq_req *req)
 {
     auto &txr = txq.cmd_ring;
     auto txd = txr.get_desc(txr.head);
     auto sop = txr.get_desc(txr.head);
     auto gen = txr.gen ^ 1; // Owned by cpu (yet)
     u64 tx_bytes = 0;
-    int etype, proto, start;
-
-    if (m_head->M_dat.MH.MH_pkthdr.csum_flags
-        & (CSUM_TCP | CSUM_UDP | CSUM_TSO)) {
-        int error = txq_offload(m_head, &etype, &proto, &start);
-        if (error) {
-            m_freem(m_head);
-            return error;
-        }
-    }
+    auto m_head = req->m;
 
     assert(txq.buf[txr.head] == NULL);
     txq.buf[txr.head] = m_head;
@@ -646,12 +645,12 @@ int vmxnet3::txq_encap(vmxnet3_txqueue &txq, struct mbuf *m_head)
 
     if (m_head->M_dat.MH.MH_pkthdr.csum_flags & CSUM_TSO) {
         sop->layout->offload_mode = VMXNET3_OM_TSO;
-        sop->layout->hlen = start;
+        sop->layout->hlen = req->start;
         sop->layout->offload_pos = m_head->M_dat.MH.MH_pkthdr.tso_segsz;
     } else if (m_head->M_dat.MH.MH_pkthdr.csum_flags & (CSUM_TCP | CSUM_UDP)) {
         sop->layout->offload_mode = VMXNET3_OM_CSUM;
-        sop->layout->hlen = start;
-        sop->layout->offload_pos = start + m_head->M_dat.MH.MH_pkthdr.csum_data;
+        sop->layout->hlen = req->start;
+        sop->layout->offload_pos = req->start + m_head->M_dat.MH.MH_pkthdr.csum_data;
     }
 
     // Finally, change the ownership.
@@ -664,58 +663,58 @@ int vmxnet3::txq_encap(vmxnet3_txqueue &txq, struct mbuf *m_head)
     return 0;
 }
 
-int vmxnet3::txq_offload(struct mbuf *m, int *etype, int *proto, int *start)
+int vmxnet3::txq_offload(struct txq_req *req)
 {
     struct ether_vlan_header *evh;
     int offset;
 
-    evh = mtod(m, struct ether_vlan_header *);
+    evh = mtod(req->m, struct ether_vlan_header *);
     if (evh->evl_encap_proto == htons(ETHERTYPE_VLAN)) {
         /* BMV: We should handle nested VLAN tags too. */
-        *etype = ntohs(evh->evl_proto);
+        req->etype = ntohs(evh->evl_proto);
         offset = sizeof(struct ether_vlan_header);
     } else {
-        *etype = ntohs(evh->evl_encap_proto);
+        req->etype = ntohs(evh->evl_encap_proto);
         offset = sizeof(struct ether_header);
     }
 
-    switch (*etype) {
+    switch (req->etype) {
     case ETHERTYPE_IP: {
         struct ip *ip, iphdr;
-        if (__predict_false(m->m_hdr.mh_len < offset + static_cast<int>(sizeof(struct ip)))) {
-            m_copydata(m, offset, sizeof(struct ip),
+        if (__predict_false(req->m->m_hdr.mh_len < offset + static_cast<int>(sizeof(struct ip)))) {
+            m_copydata(req->m, offset, sizeof(struct ip),
                 (caddr_t) &iphdr);
             ip = &iphdr;
         } else
-            ip = (struct ip *)(m->m_hdr.mh_data + offset);
-        *proto = ip->ip_p;
-        *start = offset + (ip->ip_hl << 2);
+            ip = (struct ip *)(req->m->m_hdr.mh_data + offset);
+        req->proto = ip->ip_p;
+        req->start = offset + (ip->ip_hl << 2);
         break;
     }
     default:
         return (EINVAL);
     }
 
-    if (m->M_dat.MH.MH_pkthdr.csum_flags & CSUM_TSO) {
+    if (req->m->M_dat.MH.MH_pkthdr.csum_flags & CSUM_TSO) {
         struct tcphdr *tcp, tcphdr;
 
-        if (__predict_false(*proto != IPPROTO_TCP)) {
+        if (__predict_false(req->proto != IPPROTO_TCP)) {
             /* Likely failed to correctly parse the mbuf. */
             return (EINVAL);
         }
 
-        if (m->m_hdr.mh_len < *start + static_cast<int>(sizeof(struct tcphdr))) {
-            m_copydata(m, offset, sizeof(struct tcphdr),
+        if (req->m->m_hdr.mh_len < req->start + static_cast<int>(sizeof(struct tcphdr))) {
+            m_copydata(req->m, offset, sizeof(struct tcphdr),
                 (caddr_t) &tcphdr);
             tcp = &tcphdr;
         } else
-            tcp = (struct tcphdr *)(m->m_hdr.mh_data + *start);
+            tcp = (struct tcphdr *)(req->m->m_hdr.mh_data + req->start);
 
         /*
          * For TSO, the size of the protocol header is also
          * included in the descriptor header size.
          */
-        *start += (tcp->th_off << 2);
+        req->start += (tcp->th_off << 2);
     }
 
     return (0);
