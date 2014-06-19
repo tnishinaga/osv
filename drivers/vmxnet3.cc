@@ -346,6 +346,7 @@ vmxnet3::vmxnet3(pci::device &dev)
     get_mac_address(macaddr);
     ether_ifattach(_ifn, macaddr);
     _receive_task.start();
+    _worker.start();
     enable_interrupts();
 }
 
