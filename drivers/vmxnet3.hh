@@ -22,6 +22,86 @@
 
 namespace vmw {
 
+enum {
+    VMXNET3_VENDOR_ID = 0x15AD,
+    VMXNET3_DEVICE_ID = 0x07B0,
+
+    //Queues number
+    VMXNET3_TX_QUEUES = 1,
+    VMXNET3_RX_QUEUES = 1,
+
+    //BAR0 registers
+    VMXNET3_BAR0_TXH = 0x600, // Queue 0 of Tx head
+    VMXNET3_BAR0_RXH1 = 0x800, // Queue 0 of Ring1 Rx head
+    VMXNET3_BAR0_RXH2 = 0xA00, // Queue 0 of Ring2 Rx head
+
+    //BAR1 registers
+    VMXNET3_BAR1_VRRS = 0x000,    // Revision
+    VMXNET3_BAR1_UVRS = 0x008,    // UPT version
+    VMXNET3_BAR1_DSL  = 0x010,    // Driver shared address low
+    VMXNET3_BAR1_DSH  = 0x018,    // Driver shared address high
+    VMXNET3_BAR1_CMD  = 0x020,    // Command
+
+    //VMXNET3 commands
+    VMXNET3_CMD_ENABLE = 0xCAFE0000, // Enable VMXNET3
+    VMXNET3_CMD_DISABLE = 0xCAFE0001, // Disable VMXNET3
+    VMXNET3_CMD_RESET = 0xCAFE0002, // Reset device
+    VMXNET3_CMD_SET_RXMODE = 0xCAFE0003, // Set interface flags
+    VMXNET3_CMD_SET_FILTER = 0xCAFE0004, // Set address filter
+    VMXNET3_CMD_VLAN_FILTER = 0xCAFE0005, // Set VLAN filter
+    VMXNET3_CMD_GET_STATUS = 0xF00D0000,  // Get queue errors
+    VMXNET3_CMD_GET_STATS = 0xF00D0001, // Get queue statistics
+    VMXNET3_CMD_GET_LINK = 0xF00D0002, // Get link status
+    VMXNET3_CMD_GET_MACL = 0xF00D0003, // Get MAC address low
+    VMXNET3_CMD_GET_MACH = 0xF00D0004, // Get MAC address high
+    VMXNET3_CMD_GET_INTRCFG = 0xF00D0008,  // Get interrupt config
+
+    //Shared memory alignment
+    VMXNET3_DRIVER_SHARED_ALIGN = 1,
+    VMXNET3_QUEUES_SHARED_ALIGN = 128,
+    VMXNET3_MULTICAST_ALIGN = 32,
+
+    //Generic definitions
+    VMXNET3_ETH_ALEN = 6,
+
+    //Internal device parameters
+    VMXNET3_MULTICAST_MAX = 32,
+    VMXNET3_MAX_RX_SEGS = 17,
+    VMXNET3_NUM_INTRS = 3,
+
+    //Offloading modes
+    VMXNET3_OM_NONE = 0,
+    VMXNET3_OM_CSUM = 2,
+    VMXNET3_OM_TSO = 3,
+
+    //RX modes
+    VMXNET3_RXMODE_UCAST = 0x01,
+    VMXNET3_RXMODE_MCAST = 0x02,
+    VMXNET3_RXMODE_BCAST = 0x04,
+    VMXNET3_RXMODE_ALLMULTI = 0x08,
+    VMXNET3_RXMODE_PROMISC = 0x10,
+
+    //Hardware features
+    UPT1_F_CSUM = 0x0001,
+    UPT1_F_RSS = 0x0002,
+    UPT1_F_VLAN = 0x0004,
+    UPT1_F_LRO = 0x0008,
+
+    //Queue descriptors alignment
+    VMXNET3_DESC_ALIGN = 512,
+
+    VMXNET3_INIT_GEN = 1,
+
+    // Buffer types
+    VMXNET3_BTYPE_HEAD = 0, // Head only
+    VMXNET3_BTYPE_BODY = 1  // Body only
+};
+
+static inline constexpr u32 VMXNET3_BAR0_IMASK(int irq)
+{
+    return 0x000 + irq * 8;
+}
+
 /**
  * Initialize an array of containers with specific virtual address.
  * Takes Preallocated buffer address and splits it into chunks of required size,
@@ -56,10 +136,6 @@ template<class DescT, int NDesc>
         void clear_descs() { for (int i = 0; i < NDesc; i++) clear_desc(i); }
         void increment_fill();
     private:
-        enum {
-            //Queue descriptors alignment
-            VMXNET3_DESC_ALIGN = 512
-        };
         memory::phys_contiguous_memory _desc_mem;
         DescT      _desc[NDesc];
     };
@@ -98,13 +174,6 @@ public:
 
 class vmxnet3 : public hw_driver {
 public:
-    enum {
-        VMXNET3_INIT_GEN = 1,
-
-        // Buffer types
-        VMXNET3_BTYPE_HEAD = 0, // Head only
-        VMXNET3_BTYPE_BODY = 1 // Body only
-    };
     struct txq_req {
         explicit txq_req(mbuf *_m) : m(_m) {}
         mbuf *m;
@@ -136,76 +205,6 @@ public:
     void fill_stats(struct if_data* out_data) const;
 
 private:
-    enum {
-        VMXNET3_VENDOR_ID = 0x15AD,
-        VMXNET3_DEVICE_ID = 0x07B0,
-
-        //Queues number
-        VMXNET3_TX_QUEUES = 1,
-        VMXNET3_RX_QUEUES = 1,
-
-        //BAR0 registers
-        VMXNET3_BAR0_TXH = 0x600, // Queue 0 of Tx head
-        VMXNET3_BAR0_RXH1 = 0x800, // Queue 0 of Ring1 Rx head
-        VMXNET3_BAR0_RXH2 = 0xA00, // Queue 0 of Ring2 Rx head
-
-        //BAR1 registers
-        VMXNET3_BAR1_VRRS = 0x000,    // Revision
-        VMXNET3_BAR1_UVRS = 0x008,    // UPT version
-        VMXNET3_BAR1_DSL  = 0x010,    // Driver shared address low
-        VMXNET3_BAR1_DSH  = 0x018,    // Driver shared address high
-        VMXNET3_BAR1_CMD  = 0x020,    // Command
-
-        //VMXNET3 commands
-        VMXNET3_CMD_ENABLE = 0xCAFE0000, // Enable VMXNET3
-        VMXNET3_CMD_DISABLE = 0xCAFE0001, // Disable VMXNET3
-        VMXNET3_CMD_RESET = 0xCAFE0002, // Reset device
-        VMXNET3_CMD_SET_RXMODE = 0xCAFE0003, // Set interface flags
-        VMXNET3_CMD_SET_FILTER = 0xCAFE0004, // Set address filter
-        VMXNET3_CMD_VLAN_FILTER = 0xCAFE0005, // Set VLAN filter
-        VMXNET3_CMD_GET_STATUS = 0xF00D0000,  // Get queue errors
-        VMXNET3_CMD_GET_STATS = 0xF00D0001, // Get queue statistics
-        VMXNET3_CMD_GET_LINK = 0xF00D0002, // Get link status
-        VMXNET3_CMD_GET_MACL = 0xF00D0003, // Get MAC address low
-        VMXNET3_CMD_GET_MACH = 0xF00D0004, // Get MAC address high
-        VMXNET3_CMD_GET_INTRCFG = 0xF00D0008,  // Get interrupt config
-
-        //Shared memory alignment
-        VMXNET3_DRIVER_SHARED_ALIGN = 1,
-        VMXNET3_QUEUES_SHARED_ALIGN = 128,
-        VMXNET3_MULTICAST_ALIGN = 32,
-
-        //Generic definitions
-        VMXNET3_ETH_ALEN = 6,
-
-        //Internal device parameters
-        VMXNET3_MULTICAST_MAX = 32,
-        VMXNET3_MAX_RX_SEGS = 17,
-        VMXNET3_NUM_INTRS = 3,
-
-        //Offloading modes
-        VMXNET3_OM_NONE = 0,
-        VMXNET3_OM_CSUM = 2,
-        VMXNET3_OM_TSO = 3,
-
-        //RX modes
-        VMXNET3_RXMODE_UCAST = 0x01,
-        VMXNET3_RXMODE_MCAST = 0x02,
-        VMXNET3_RXMODE_BCAST = 0x04,
-        VMXNET3_RXMODE_ALLMULTI = 0x08,
-        VMXNET3_RXMODE_PROMISC = 0x10,
-
-        //Hardware features
-        UPT1_F_CSUM = 0x0001,
-        UPT1_F_RSS = 0x0002,
-        UPT1_F_VLAN = 0x0004,
-        UPT1_F_LRO = 0x0008
-    };
-    static inline constexpr u32 VMXNET3_BAR0_IMASK(int irq)
-    {
-        return 0x000 + irq * 8;
-    }
-
     void parse_pci_config();
     void stop();
     void enable_device();

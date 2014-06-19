@@ -181,12 +181,12 @@ void vmxnet3_txqueue::init()
     auto &txr = cmd_ring;
     txr.head = 0;
     txr.next = 0;
-    txr.gen = vmxnet3::VMXNET3_INIT_GEN;
+    txr.gen = VMXNET3_INIT_GEN;
     txr.clear_descs();
 
     auto &txc = comp_ring;
     txc.next = 0;
-    txc.gen = vmxnet3::VMXNET3_INIT_GEN;
+    txc.gen = VMXNET3_INIT_GEN;
     txc.clear_descs();
 }
 
@@ -205,7 +205,7 @@ void vmxnet3_rxqueue::init()
     for (unsigned i = 0; i < VMXNET3_RXRINGS_PERQ; i++) {
         auto &rxr = cmd_rings[i];
         rxr.fill = 0;
-        rxr.gen = vmxnet3::VMXNET3_INIT_GEN;
+        rxr.gen = VMXNET3_INIT_GEN;
         rxr.clear_descs();
 
         for (unsigned idx = 0; idx < rxr.get_desc_num(); idx++) {
@@ -215,7 +215,7 @@ void vmxnet3_rxqueue::init()
 
     auto &rxc = comp_ring;
     rxc.next = 0;
-    rxc.gen = vmxnet3::VMXNET3_INIT_GEN;
+    rxc.gen = VMXNET3_INIT_GEN;
     rxc.clear_descs();
 }
 
@@ -237,18 +237,18 @@ void vmxnet3_rxqueue::newbuf(int rid)
     if (rid == 0 && (idx % 1) == 0) {
         flags = M_PKTHDR;
         clsize = MJUM16BYTES;
-        btype = vmxnet3::VMXNET3_BTYPE_HEAD;
+        btype = VMXNET3_BTYPE_HEAD;
     } else {
         flags = 0;
         clsize = MJUM16BYTES;
-        btype = vmxnet3::VMXNET3_BTYPE_BODY;
+        btype = VMXNET3_BTYPE_BODY;
     }
     auto m = m_getjcl(M_NOWAIT, MT_DATA, flags, clsize);
     if (m == NULL) {
         panic("mbuf allocation failed");
         return;
     }
-    if (btype == vmxnet3::VMXNET3_BTYPE_HEAD) {
+    if (btype == VMXNET3_BTYPE_HEAD) {
         m->m_hdr.mh_len = m->M_dat.MH.MH_pkthdr.len = clsize;
         m_adj(m, ETHER_ALIGN);
     }else
