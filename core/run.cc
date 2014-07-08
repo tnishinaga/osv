@@ -24,6 +24,15 @@ extern "C" void __libc_start_main()
     abort("Invalid call to __libc_start_main");
 }
 
+extern "C" int osv_run(const char *path, int argc, char **argv, int *return_code)
+{
+    auto lib = osv::run(std::string(path), argc, argv, return_code);
+    if (lib)
+        return 0;
+    else
+        return 1;
+}
+
 namespace osv {
 
 std::shared_ptr<elf::object> run(std::string path,
