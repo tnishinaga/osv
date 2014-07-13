@@ -26,10 +26,6 @@
 	path = mgmt
 	url = ../../cloudius-systems/mgmt.git
 	ignore = dirty
-[submodule "apps"]
-	path = apps
-	url = ../../cloudius-systems/osv-apps
-	ignore = dirty
 [submodule "external/aarch64/gcc.bin"]
 	path = external/aarch64/gcc.bin
 	url = ../../cloudius-systems/aarch64-gcc.bin.git
@@ -45,3 +41,7 @@
 [submodule "musl"]
 	path = musl
 	url = ../../cloudius-systems/musl.git
+[submodule "apps"]
+	path = apps
+	url = https://github.com/syuu1228/osv-apps.git
+	branch = spcamp
