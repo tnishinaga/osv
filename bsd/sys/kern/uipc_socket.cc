@@ -1041,10 +1041,16 @@ restart:
 				 * chain.  If no data is to be copied in,
 				 * a single empty mbuf is returned.
 				 */
-				top = m_uiotombuf(uio, M_WAITOK, space,
-				    (atomic ? max_hdr : 0), MCLBYTES,
-				    (atomic ? M_PKTHDR : 0) |
-				    ((flags & MSG_EOR) ? M_EOR : 0));
+				if (!(flags & MSG_ZCOPY))
+					top = m_uiotombuf(uio, M_WAITOK, space,
+					    (atomic ? max_hdr : 0), MCLBYTES,
+					    (atomic ? M_PKTHDR : 0) |
+					    ((flags & MSG_EOR) ? M_EOR : 0));
+				else
+					top = m_uiotombuf_zcopy(uio, M_WAITOK, space,
+					    (atomic ? max_hdr : 0), MCLBYTES,
+					    (atomic ? M_PKTHDR : 0) |
+					    ((flags & MSG_EOR) ? M_EOR : 0));
 				if (top == NULL) {
 					error = EFAULT; /* only possible error */
 					goto release;

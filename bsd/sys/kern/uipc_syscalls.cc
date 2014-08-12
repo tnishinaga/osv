@@ -57,6 +57,10 @@
 #include <memory>
 #include <fs/fs.hh>
 
+#include <osv/mempool.hh>
+#include <osv/pagealloc.hh>
+#include <osv/zcopy.h>
+
 using namespace std;
 
 /* FIXME: OSv - implement... */
@@ -1001,3 +1005,54 @@ sockargs(struct mbuf **mp, caddr_t buf, int buflen, int type)
 	}
 	return (error);
 }
+
+ssize_t 
+zcopy_sendmsg(int s, struct iovec iov)
+{
+	struct file *fp;
+	struct uio auio = {};
+	struct socket *so;
+	int error;
+	ssize_t len;
+	ssize_t bytes = 0;
+
+	error = getsock_cap(s, &fp, NULL);
+	if (error)
+		return (error);
+	so = (struct socket *)file_data(fp);
+
+	auio.uio_iov = &iov;
+	auio.uio_iovcnt = 1;
+	auio.uio_rw = UIO_WRITE;
+	auio.uio_offset = 0;			/* XXX */
+	auio.uio_resid = iov.iov_len;
+	len = auio.uio_resid;
+	error = sosend(so, NULL, &auio, 0, NULL, MSG_ZCOPY, 0);
+	if (error) {
+		if (auio.uio_resid != len && (error == ERESTART ||
+		    error == EINTR || error == EWOULDBLOCK))
+			error = 0;
+		/* FIXME: OSv - Implement... */
+#if 0
+		/* Generation of SIGPIPE can be controlled per socket */
+		if (error == EPIPE && !(so->so_options & SO_NOSIGPIPE) &&
+		    !(flags & MSG_NOSIGNAL)) {
+			PROC_LOCK(td->td_proc);
+			tdsignal(td, SIGPIPE);
+			PROC_UNLOCK(td->td_proc);
+		}
+#endif
+		bytes = error;
+	}
+	if (error == 0)
+	    bytes = len - auio.uio_resid;
+	fdrop(fp);
+	return (bytes);
+}
+
+ssize_t zcopy_send(int fd, const void *buf, size_t len)
+{
+	struct iovec iov = {const_cast<void*>(buf), len};
+	return zcopy_sendmsg(fd, iov);
+}
+
