@@ -292,4 +292,18 @@ extern "C" {
         console::arch_early_console.write("\r\n", 2);
         console::arch_early_console.flush();
     }
+
+    // lockless version
+    void debug_early_ll(const char *fmt, ...)
+    {
+        static char msg[1024];
+
+        va_list ap;
+
+        va_start(ap, fmt);
+        vsnprintf(msg, sizeof(msg), fmt, ap);
+        va_end(ap);
+
+        debug_early(msg);
+    }
 }
