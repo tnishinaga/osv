@@ -1186,7 +1186,7 @@ static void vm_sigsegv(uintptr_t addr, exception_frame* ef)
 {
     void *pc = ef->get_pc();
     if (pc >= text_start && pc < text_end) {
-        debug_ll("page fault outside application, addr: 0x%016lx\n", addr);
+        debug_early_ll("page fault outside application, addr: 0x%016lx\n", addr);
         dump_registers(ef);
         abort();
     }

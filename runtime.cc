@@ -86,7 +86,7 @@ static void print_backtrace(void)
     void *addrs[128];
     int len;
 
-    debug_ll("\n[backtrace]\n");
+    debug_early_ll("\n[backtrace]\n");
 
     len = backtrace_safe(addrs, 128);
 
@@ -99,7 +99,7 @@ static void print_backtrace(void)
             // Skip abort() (which called abort(const char*) already skipped
             continue;
         }
-        debug_ll("0x%016lx <%s>\n", addr, name);
+        debug_early_ll("0x%016lx <%s>\n", addr, name);
     }
 }
 
