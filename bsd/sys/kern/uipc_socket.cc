@@ -866,7 +866,7 @@ sosend_dgram(struct socket *so, struct bsd_sockaddr *addr, struct uio *uio,
 		 * is returned.
 		 */
 		top = m_uiotombuf(uio, M_WAITOK, space, max_hdr, 1,
-		    (M_PKTHDR | ((flags & MSG_EOR) ? M_EOR : 0)));
+		    (M_PKTHDR | ((flags & MSG_EOR) ? M_EOR : 0)), nullptr);
 		if (top == NULL) {
 			error = EFAULT;	/* only possible error */
 			goto out;
@@ -943,11 +943,19 @@ sosend_generic(struct socket *so, struct bsd_sockaddr *addr, struct uio *uio,
 	ssize_t resid;
 	int clen = 0, error, dontroute;
 	int atomic = sosendallatonce(so) || top;
+	struct iovec iov[uio == NULL ? 1 : uio->uio_iovcnt];
 
 	if (uio != NULL)
 		resid = uio->uio_resid;
 	else
 		resid = top->M_dat.MH.MH_pkthdr.len;
+
+	if (flags & MSG_ZCOPY) {
+		KASSERT(uio->uio_iov, ("iov is null on MSG_ZCOPY"));
+		for (int i = 0; i < uio->uio_iovcnt; i++)
+			iov[i] = uio->uio_iov[i];
+	}
+
 	/*
 	 * In theory resid should be unsigned.  However, space must be
 	 * signed, as it might be less than 0 if we over-committed, and we
@@ -1042,7 +1050,9 @@ restart:
 				top = m_uiotombuf(uio, M_WAITOK, space,
 				    (atomic ? max_hdr : 0), MCLBYTES,
 				    (atomic ? M_PKTHDR : 0) |
-				    ((flags & MSG_EOR) ? M_EOR : 0));
+				    ((flags & MSG_EOR) ? M_EOR : 0) |
+				    ((flags & MSG_ZCOPY) ? M_ZCOPY : 0),
+				    iov);
 				if (top == NULL) {
 					error = EFAULT; /* only possible error */
 					goto release;

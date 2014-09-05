@@ -404,6 +404,7 @@ struct sockproto {
 #if __BSD_VISIBLE
 #define	MSG_NOSIGNAL	0x20000		/* do not generate SIGPIPE on EOF */
 #endif
+#define	MSG_ZCOPY	0x40000
 
 #if __BSD_VISIBLE
 /*

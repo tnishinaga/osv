@@ -192,6 +192,7 @@ struct mbuf {
 #define	M_PROTO7	0x00100000 /* protocol-specific */
 #define	M_PROTO8	0x00200000 /* protocol-specific */
 #define	M_FLOWID	0x00400000 /* deprecated: flowid is valid */
+#define	M_ZCOPY		0x00800000 /* zerocopy */
 #define	M_HASHTYPEBITS	0x0F000000 /* mask of bits holding flowid hash type */
 
 /*
@@ -870,6 +871,8 @@ u_int		 m_fixhdr(struct mbuf *);
 struct mbuf	*m_fragment(struct mbuf *, int, int);
 void		 m_freem(struct mbuf *);
 struct mbuf	*m_getm2(struct mbuf *, int, int, short, int);
+struct mbuf	*m_getm2_zcopy(struct mbuf *, struct uio *, int, int, short,
+		    int, struct iovec *);
 struct mbuf	*m_getptr(struct mbuf *, int, int *);
 u_int		 m_length(struct mbuf *, struct mbuf **);
 int		 m_mbuftouio(struct uio *, struct mbuf *, int);
@@ -879,7 +882,7 @@ struct mbuf	*m_pulldown(struct mbuf *, int, int, int *);
 struct mbuf	*m_pullup(struct mbuf *, int);
 int		m_sanity(struct mbuf *, int);
 struct mbuf	*m_split(struct mbuf *, int, int);
-struct mbuf	*m_uiotombuf(struct uio *, int, int, int, int, int);
+struct mbuf	*m_uiotombuf(struct uio *, int, int, int, int, int, struct iovec *);
 struct mbuf	*m_unshare(struct mbuf *, int how);
 
 /*-

@@ -35,6 +35,9 @@
 #include <bsd/porting/uma_stub.h>
 #include <bsd/sys/sys/mbuf.h>
 #include <machine/atomic.h>
+#include <osv/mmu.hh>
+#include <bsd/sys/sys/socket.h>
+#include <osv/zcopy.hh>
 
 int	max_linkhdr;
 int	max_protohdr;
@@ -115,6 +118,119 @@ m_getm2(struct mbuf *m, int len, int how, short type, int flags)
 		/* Book keeping. */
 		len -= (mb->m_hdr.mh_flags & M_EXT) ? mb->M_dat.MH.MH_dat.MH_ext.ext_size :
 			((mb->m_hdr.mh_flags & M_PKTHDR) ? MHLEN : MLEN);
+		if (mtail != NULL)
+			mtail->m_hdr.mh_next = mb;
+		else
+			nm = mb;
+		mtail = mb;
+		flags &= ~M_PKTHDR;	/* Only valid on the first mbuf. */
+	}
+	if (flags & M_EOR)
+		mtail->m_hdr.mh_flags |= M_EOR;  /* Only valid on the last mbuf. */
+
+	/* If mbuf was supplied, append new chain to the end of it. */
+	if (m != NULL) {
+		for (mtail = m; mtail->m_hdr.mh_next != NULL; mtail = mtail->m_hdr.mh_next)
+			;
+		mtail->m_hdr.mh_next = nm;
+		mtail->m_hdr.mh_flags &= ~M_EOR;
+	} else
+		m = nm;
+
+	return (m);
+}
+
+static void
+zcopy_txbuf_release(void *arg1, void *arg2)
+{
+	auto zm = reinterpret_cast<struct zmsghdr *>(arg1);
+	auto len = reinterpret_cast<size_t>(arg2);
+	auto zh = reinterpret_cast<ztx_handle *>(zm->zm_handle);
+	auto remained = zh->zh_remained - len;
+
+	if (remained == 0 && zm->zm_fd) {
+		delete zh;
+		zm->zm_handle = nullptr;
+		write(zm->zm_fd, arg1, sizeof(arg1));
+	}
+}
+
+struct mbuf *
+m_getm2_zcopy(struct mbuf *m, struct uio *uio, int len, int how, short type,
+		    int flags, struct iovec *iov)
+{
+	struct mbuf *mb, *nm = NULL, *mtail = NULL;
+
+	KASSERT(len >= 0, ("%s: len is < 0", __func__));
+
+	/* Validate flags. */
+	flags &= (M_PKTHDR | M_EOR);
+
+	/* Packet header mbuf must be first in chain. */
+	if ((flags & M_PKTHDR) && m != NULL)
+		flags &= ~M_PKTHDR;
+
+	/* Loop and append maximum sized mbufs to the chain tail. */
+	while (len > 0 && uio->uio_resid) {
+		auto vbase = align_down(iov->iov_base, mmu::page_size);
+		auto pbase = mmu::virt_to_phys(vbase);
+		auto offset = reinterpret_cast<uintptr_t>(iov->iov_base) 
+		    - reinterpret_cast<uintptr_t>(vbase);
+		auto page_end = mmu::page_size - offset;
+		size_t cnt;
+
+		if (iov->iov_len < page_end) {
+			cnt = iov->iov_len;
+		} else {
+			/* split mbuf on page boundary by default */
+			cnt = page_end;
+
+			/* but if pages are physically contiguous, don't split */
+			while(1) {
+				auto next_vbase = vbase + mmu::page_size;
+				auto next_pbase = mmu::virt_to_phys(next_vbase);
+				if (next_pbase == pbase + mmu::page_size) {
+					cnt += mmu::page_size;
+					if (cnt >= iov->iov_len) {
+						cnt = iov->iov_len;
+						break;
+					}
+				} else {
+					break;
+				}
+				vbase = next_vbase;
+				pbase = next_pbase;
+			}
+		}
+		if (cnt == 0) {
+			iov++;
+			uio->uio_iovcnt--;
+			continue;
+		}
+
+		if (cnt > len)
+			cnt = len;
+
+		if (flags & M_PKTHDR)
+			mb = m_gethdr(how, type);
+		else
+			mb = m_get(how, type);
+
+		/* Fail the whole operation if one mbuf can't be allocated. */
+		if (mb == NULL) {
+			if (nm != NULL)
+				m_freem(nm);
+			return (NULL);
+		}
+
+		MEXTADD(mb, iov->iov_base, cnt, zcopy_txbuf_release, reinterpret_cast<void *>(uio->uio_iov), reinterpret_cast<void*>(cnt), 0, EXT_MOD_TYPE);
+
+		iov->iov_base = (char *)iov->iov_base + cnt;
+		iov->iov_len -= cnt;
+		uio->uio_resid -= cnt;
+		uio->uio_offset += cnt;
+		len -= cnt;
+
 		if (mtail != NULL)
 			mtail->m_hdr.mh_next = mb;
 		else
@@ -1681,7 +1797,7 @@ nospace:
  */
 struct mbuf *
 m_uiotombuf(struct uio *uio, int how, int len, int align, int min_size,
-		    int flags)
+		    int flags, struct iovec *iov)
 {
 	struct mbuf *m, *mb;
 	int error, length;
@@ -1708,7 +1824,10 @@ m_uiotombuf(struct uio *uio, int how, int len, int align, int min_size,
 	 * Give us the full allocation or nothing.
 	 * If len is zero return the smallest empty mbuf.
 	 */
-	m = m_getm2(NULL, bsd_max(total + align, min_size), how, MT_DATA, flags);
+	if (!(flags & M_ZCOPY))
+		m = m_getm2(NULL, bsd_max(total + align, min_size), how, MT_DATA, flags);
+	else
+		m = m_getm2_zcopy(NULL, uio, bsd_max(total + align, min_size), how, MT_DATA, flags, iov);
 	if (m == NULL)
 		return (NULL);
 	m->m_hdr.mh_data += align;
@@ -1717,10 +1836,12 @@ m_uiotombuf(struct uio *uio, int how, int len, int align, int min_size,
 	for (mb = m; mb != NULL; mb = mb->m_hdr.mh_next) {
 		length = bsd_min(M_TRAILINGSPACE(mb), total - progress);
 
-		error = uiomove(mtod(mb, void *), length, uio);
-		if (error) {
-			m_freem(m);
-			return (NULL);
+		if (!(flags & M_ZCOPY)) {
+			error = uiomove(mtod(mb, void *), length, uio);
+			if (error) {
+				m_freem(m);
+				return (NULL);
+			}
 		}
 
 		mb->m_hdr.mh_len = length;
