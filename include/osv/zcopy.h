@@ -13,6 +13,8 @@ struct zmsghdr {
 
 ssize_t zcopy_sendmsg(int sockfd, struct zmsghdr *zm);
 void zcopy_close(struct zmsghdr *zm);
+ssize_t zcopy_recvmsg(int sockfd, struct zmsghdr *zm);
+int zcopy_rxgc(struct zmsghdr *zm);
 
 #ifdef __cplusplus
 }

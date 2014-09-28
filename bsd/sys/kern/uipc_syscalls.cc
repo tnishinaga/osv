@@ -1070,3 +1070,31 @@ zcopy_close(struct zmsghdr *zm)
 	close(zm->zm_fd);
 }
 
+ssize_t
+zcopy_recvmsg(int s, struct zmsghdr *zm)
+{
+	int error;
+	struct file *fp;
+	struct socket *so;
+	struct bsd_sockaddr *fromsa = 0;
+	int flags = MSG_ZCOPY /*| MSG_DONTWAIT */; /* XXX: disable async for testing */
+	ssize_t bytes;
+
+	zm->zm_handle = nullptr;
+
+	error = getsock_cap(s, &fp, NULL);
+	if (error)
+		return (error);
+	so = (socket*)file_data(fp);
+
+	error = zreceive(so, &fromsa, zm, &flags, &bytes);
+	fdrop(fp);
+	if (fromsa)
+		free(fromsa);
+	if (error) {
+		errno = error;
+		return (-1);
+	}
+
+	return (bytes);
+}
