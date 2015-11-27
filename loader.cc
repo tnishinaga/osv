@@ -87,6 +87,7 @@ extern "C" {
     void ramdisk_init(void);
 }
 
+uint64_t *uefi_rsdp = NULL;
 void premain()
 {
     arch_init_early_console();
@@ -96,6 +97,12 @@ void premain()
        without depending on prior initialization. */
     debug_early("OSv " OSV_VERSION "\n");
 
+    if (uefi_rsdp) {
+	    debug_early_u64("uefi_rsdp: ", *uefi_rsdp);
+//	    debug_early_u64("*uefi_rsdp: ", *uefi_rsdp);
+	    while(1)
+	        ;
+    }
     arch_init_premain();
 
     auto inittab = elf::get_init(elf_header);

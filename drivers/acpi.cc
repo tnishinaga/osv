@@ -37,6 +37,11 @@ extern "C" {
 #define acpi_w(...)   tprintf_w(acpi_tag, __VA_ARGS__)
 #define acpi_e(...)   tprintf_e(acpi_tag, __VA_ARGS__)
 
+extern "C" {
+//    UINT64 *uefi_rsdp = NULL;
+    extern UINT64 *uefi_rsdp;
+}
+
 ACPI_STATUS AcpiOsInitialize()
 {
     return AE_OK;
@@ -49,6 +54,10 @@ ACPI_STATUS AcpiOsTerminate()
 
 ACPI_PHYSICAL_ADDRESS AcpiOsGetRootPointer()
 {
+//    debug_early_u64("uefi_rsdp:", (UINT64)uefi_rsdp);
+    if (uefi_rsdp) {
+        return *uefi_rsdp;
+    }
     ACPI_SIZE rsdp;
     auto st = AcpiFindRootPointer(&rsdp);
     if (ACPI_FAILURE(st)) {

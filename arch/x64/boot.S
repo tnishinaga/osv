@@ -96,6 +96,7 @@ start64:
     .cfi_startproc simple
     .cfi_def_cfa %rsp, 0
     .cfi_undefined %rip
+    mov %r9, uefi_rsdp
     lea .bss, %rdi
     lea .edata, %rcx
     sub %rdi, %rcx
