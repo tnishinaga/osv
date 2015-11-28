@@ -96,12 +96,12 @@ start64:
     .cfi_startproc simple
     .cfi_def_cfa %rsp, 0
     .cfi_undefined %rip
-    mov %r9, uefi_rsdp
     lea .bss, %rdi
     lea .edata, %rcx
     sub %rdi, %rcx
     xor %eax, %eax
     rep stosb
+    mov %r9, uefi_rsdp
     mov %rbp, elf_header
     # %ebx is set by boot16.S before running the loader
     mov %rbx, osv_multiboot_info

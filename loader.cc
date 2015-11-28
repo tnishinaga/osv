@@ -98,9 +98,9 @@ void premain()
     debug_early("OSv " OSV_VERSION "\n");
 
     if (uefi_rsdp) {
-	    debug_early_u64("uefi_rsdp: ", *uefi_rsdp);
+	    debug_early_u64("uefi_rsdp: ", (long long unsigned int)uefi_rsdp);
 //	    debug_early_u64("*uefi_rsdp: ", *uefi_rsdp);
-	    while(1)
+	    // while(1)
 	        ;
     }
     arch_init_premain();
